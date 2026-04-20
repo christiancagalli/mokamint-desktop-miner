@@ -100,7 +100,7 @@ public class GUIController {
                         + " MB)...");
                 updateMessage("Status: Creating plot...");
 
-                minerService.createPlot(
+                /*minerService.createPlot(
                         plotPath,
                         0L,
                         finalPlotSize,
@@ -112,7 +112,7 @@ public class GUIController {
                             updateProgress(progress, 100);
                             updateMessage("Progress: " + progress + "%");
                         }
-                );
+                );*/
 
                 return null;
             }

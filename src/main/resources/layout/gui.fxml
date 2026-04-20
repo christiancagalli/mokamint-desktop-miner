@@ -3,12 +3,16 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
+<?import java.net.URL?>
 
 <VBox xmlns="http://javafx.com/javafx"
       xmlns:fx="http://javafx.com/fxml"
       fx:controller="it.univr.mokamintminer.gui.GUIController"
-      spacing="16"
-      style="-fx-background-color: #FFFFFF;">
+      spacing="16">
+
+    <stylesheets>
+        <URL value="@style.css" />
+    </stylesheets>
 
     <padding>
         <Insets top="24" right="24" bottom="24" left="24"/>

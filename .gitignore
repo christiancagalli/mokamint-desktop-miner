@@ -12,3 +12,30 @@
 # Mac / Linux / Windows
 .DS_Store
 Thumbs.db*.bin
+
+# --- File di Identità e Sicurezza (MOLTO IMPORTANTE) ---
+# Non caricare mai le tue chiavi private!
+*.json
+test_chiave.json
+
+# --- File di Plot (PESANTI) ---
+# I plot occupano GB e non devono stare su GitHub
+*.plot
+mio_test.plot
+
+# --- IntelliJ / IDE ---
+.idea/
+*.iml
+out/
+gen/
+.settings/
+.project/
+.classpath/
+
+# --- Build / Maven ---
+target/
+*.class
+
+# --- Sistema Operativo ---
+.DS_Store
+Thumbs.db
