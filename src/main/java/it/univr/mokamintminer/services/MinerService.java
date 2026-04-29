@@ -16,8 +16,14 @@ import io.mokamint.plotter.Plots;
 import io.hotmoka.crypto.Entropies;
 import io.hotmoka.crypto.api.Entropy;
 import io.hotmoka.crypto.BIP39Mnemonics;
+import org.bouncycastle.util.encoders.Hex;
+
 import java.nio.file.Files;
 import java.io.IOException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 
 import java.nio.file.Path;
@@ -143,192 +149,33 @@ public class MinerService {
         return mnemonic;
     }
 
-}
-
-
-
-
-
-// ---TODO:   GENERARE UNA NUOVA CHIAVE OPPURE USARNE UNA NOTA
-
-/*
-public void createPlot(Path plotPath,
-                       long startNonce,
-                       long plotSize,
-                       String mnemonic, // Aggiungiamo questo!
-                       ProgressListener listener) throws Exception {
-
-    SignatureAlgorithm signature = SignatureAlgorithms.ed25519();
-    HashingAlgorithm hashing = HashingAlgorithms.shabal256();
-
-    KeyPair blockKeys;
-
-    if (mnemonic == null || mnemonic.isEmpty()) {
-        // CASO A: Non ho una chiave, ne creo una nuova
-        blockKeys = signature.getKeyPair();
-        System.out.println("Generata nuova chiave.");
-        // Qui dovresti mostrare all'utente le 12 parole generate per permettergli di salvarle!
-    } else {
-        // CASO B: L'utente ha inserito le sue 12 parole
-        // Esiste una funzione nelle librerie Hotmoka per rigenerare la chiave dalle parole
-        byte[] entropy = deriveEntropyFromMnemonic(mnemonic);
-        blockKeys = signature.keyPairFrom(entropy);
-        System.out.println("Chiave caricata correttamente.");
-    }
-
-    // Il resto rimane uguale, ma il plot ora è "firmato" con la chiave scelta
-    Prolog prolog = Prologs.of("desktop-miner", signature, blockKeys.getPublic(), ...);
-    Plots.create(plotPath, prolog, startNonce, plotSize, hashing, listener::onProgress);
-}*
-/
-
-
- */
-//---TODO:
-/*
-public void saveKeyToFile(String mnemonic, Path destination) throws IOException {
-    // Crea la stringa JSON (o semplice testo)
-    String content = "Mnemonic: " + mnemonic;
-    Files.writeString(destination, content);
-}
-
-public String loadKeyFromFile(Path source) throws IOException {
-    // Legge il file e restituisce la mnemonica
-    return Files.readString(source).replace("Mnemonic: ", "").trim();
-}*/
-
-
-//---TODO:
-/*
-
-public void saveKeyFile(String mnemonic, Path filePath) throws IOException {
-    String json = "{\n" +
-            "  \"version\": \"1.0\",\n" +
-            "  \"description\": \"Mokamint Miner Key File\",\n" +
-            "  \"mnemonic\": \"" + mnemonic + "\",\n" +
-            "  \"warning\": \"NON CONDIVIDERE QUESTO FILE. Chiunque lo possiede può rubare i tuoi fondi.\"\n" +
-            "}";
-
-    Files.writeString(filePath, json);
-}
-
-loadKeys(Path path): La logica per leggere il file e recuperare la mnemonica.
-public String loadMnemonicFromFile(Path filePath) throws IOException {
-    String content = Files.readString(filePath);
-    // Logica semplice per estrarre il valore tra le virgolette dopo "mnemonic"
-    // In un progetto reale useresti una libreria JSON come Jackson o Gson
-    int start = content.indexOf("\"mnemonic\": \"") + 13;
-    int end = content.indexOf("\"", start);
-    return content.substring(start, end);
-}
-
-------------------------------------------------SENZA IMPORT MNEMONIC----------------------------------------------------
-
-import io.hotmoka.crypto.Entropies;
-import io.hotmoka.crypto.SignatureAlgorithms;
-import io.hotmoka.crypto.api.Entropy;
-import io.hotmoka.crypto.api.SignatureAlgorithm;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyPair;
-import java.io.IOException;
-
-public class MinerService {
-
-    // 1. Genera una nuova entropia casuale
-    public Entropy generateNewKey() {
-        return Entropies.random();
-    }
-
-    // 2. Salva l'entropia in un file JSON
-    public void saveKeyFile(Entropy entropy, Path filePath) throws IOException {
-        // Trasformiamo i byte dell'entropia in una stringa esadecimale per salvarla
-        String hexEntropy = bytesToHex(entropy.getResponse());
-
-        String json = "{\n" +
-                "  \"version\": \"1.0\",\n" +
-                "  \"type\": \"Mokamint Key File\",\n" +
-                "  \"entropy\": \"" + hexEntropy + "\",\n" +
-                "  \"warning\": \"Keep this file secret!\"\n" +
-                "}";
-
-        Files.writeString(filePath, json);
-    }
-
-    // 3. Carica l'entropia dal file JSON
-    public byte[] loadEntropyBytes(Path filePath) throws IOException {
-        String content = Files.readString(filePath);
-        int start = content.indexOf("\"entropy\": \"") + 12;
-        int end = content.indexOf("\"", start);
-        String hex = content.substring(start, end);
-        return hexToBytes(hex);
-    }
-
-    // Funzioni di supporto per trasformare i byte in testo (Hex)
-    private String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) sb.append(String.format("%02x", b));
-        return sb.toString();
-    }
-
-    private byte[] hexToBytes(String s) {
-        int len = s.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                                 + Character.digit(s.charAt(i+1), 16));
+    public static String bytesToHex(byte[] hash) {
+        StringBuilder hexString = new StringBuilder(2 * hash.length);
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
         }
-        return data;
+        return hexString.toString();
     }
+
+
+
+    /*public KeyPair importKeyFromHex(String privateKeyHex) throws Exception {
+        // 1. Converti la stringa hex in byte[]
+        byte[] keyBytes = Hex.decode(privateKeyHex);
+
+        // 2. Ricostruisci la chiave privata (esempio per algoritmi standard come EdDSA o ECDSA)
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory kf = KeyFactory.getInstance("Ed25519"); // O l'algoritmo usato da Mokamint
+        PrivateKey privKey = kf.generatePrivate(spec);
+
+        // 3. Deriva la pubblica dalla privata per creare il KeyPair
+        // Spesso Mokamint ha utility interne per farlo, altrimenti serve la specifica
+        PublicKey pubKey = derivePublicKey(privKey);
+
+        return new KeyPair(pubKey, privKey);
+    }
+    */
+
 }
-*/
-
-
-
-//#################################################################################################################################################################################
-// --------VECCHIO CODICE---------------------------
-/*public void createPlot(Path plotPath,
-                           long startNonce,
-                           long plotSize,
-                           String endpoint,
-                           ProgressListener listener
-    ) throws Exception {
-
-            // Algoritmi crypto
-            SignatureAlgorithm signature = SignatureAlgorithms.ed25519();
-            HashingAlgorithm hashing = HashingAlgorithms.shabal256();
-
-            // Chiavi locali del miner
-            KeyPair blockKeys = signature.getKeyPair();
-            KeyPair txKeys = signature.getKeyPair();
-
-            // prolog valido
-            Prolog prolog = Prologs.of(
-                    "desktop-miner",
-                    signature,
-                    blockKeys.getPublic(),
-                    signature,
-                    txKeys.getPublic(),
-                    new byte[0]
-            );
-
-            System.out.println("[PLOT] Creating plot:");
-            System.out.println("[PLOT] Path: " + plotPath.toAbsolutePath());
-
-            System.out.println("[PLOT] Nonces: " + plotSize);
-            System.out.println("[PLOT] Estimated size: " + (plotSize * 262144 / (1024 * 1024)) + " MB");
-
-            // creazione plot
-            Plots.create(
-                    plotPath,
-                    prolog,
-                    startNonce,
-                    plotSize,
-                    hashing,
-                    progress -> {
-                        if (listener != null)
-                            listener.onProgress(progress);
-                    }
-            );
-
-    }*/

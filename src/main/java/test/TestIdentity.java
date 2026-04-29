@@ -14,7 +14,7 @@ public class TestIdentity {
             String paroleOriginarie = service.generateNewMnemonic();
             System.out.println("1. Parole generate: " + paroleOriginarie);
 
-            // --- 2. VALIDAZIONE (Momento ideale per testarla) ---
+            // --- 2. VALIDAZIONE ---
             boolean isValida = service.isValidMnemonic(paroleOriginarie);
             System.out.println("2. La mnemonica generata è valida? " + (isValida ? "SÌ" : "NO"));
 

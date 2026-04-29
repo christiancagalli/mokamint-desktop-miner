@@ -7,6 +7,7 @@ import io.mokamint.plotter.Plots;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.security.KeyPair;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,13 +22,13 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
         void onDeadline(int totalDeadlines);
     }
 
-    public DesktopMinerService(URI endpoint, Path plotPath, MinerListener listener) throws Exception {
+    public DesktopMinerService(URI endpoint, Path plotPath, KeyPair keys, MinerListener listener) throws Exception {
         super(
                 Optional.of(
                         LocalMiners.of(
                                 "Desktop Miner",
                                 "Miner GUI",
-                                (signature, publicKey) -> Optional.empty(),
+                                (signature, publicKey) -> Optional.of(new java.math.BigInteger(1, keys.getPrivate().getEncoded())),
                                 Plots.load(plotPath)
                         )
                 ),

@@ -1,0 +1,230 @@
+package it.univr.mokamintminer.gui;
+
+import io.hotmoka.crypto.api.BIP39Mnemonic;
+import it.univr.mokamintminer.services.MinerService;
+import javafx.animation.FadeTransition;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.KeyPair;
+
+public class LoginController {
+
+    @FXML
+    private VBox manualInputBox;
+    @FXML private VBox loadJsonBox;
+    @FXML private TextField jsonPathField;
+    @FXML private Button loginJsonButton;
+
+    @FXML
+    private TextArea mnemonicTextArea;
+
+    private final MinerService minerService = new MinerService();
+    private KeyPair loggedKeyPair;
+
+    @FXML
+    private void initialize() {
+        // Logica eseguita all'avvio della pagina
+    }
+
+    //BOTTONE PER GENERARE IDENTITÀ NEL CASO NON SI POSSEDESSE
+    @FXML
+    private void handleGenerateNew() {
+
+        manualInputBox.setVisible(false);
+        manualInputBox.setManaged(false);
+        loadJsonBox.setVisible(false);
+        loadJsonBox.setManaged(false);
+
+        String newMnemonic = minerService.generateNewMnemonic();
+
+        // Configura il salvataggio file
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Salva la tua Identità (.json)");
+        fileChooser.setInitialFileName("mokamint_identity.json");
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+        File file = fileChooser.showSaveDialog(mnemonicTextArea.getScene().getWindow());
+
+        if (file != null) {
+            try {
+                // Generiamo le chiavi e salviamo
+                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(newMnemonic);
+                minerService.saveIDFile(newMnemonic, this.loggedKeyPair, Path.of(file.getAbsolutePath()));
+
+                // Mostriamo il pop-up informativo (così l'utente vede le parole almeno una volta)
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Identità Creata");
+                alert.setHeaderText("Salvataggio completato!");
+                alert.setContentText("Il file JSON è pronto. \n\nPAROLE DI RECUPERO (Scrivile ora!):\n" + newMnemonic);
+
+                // Quando l'utente preme OK sul pop-up, lo portiamo dentro l'app
+                alert.showAndWait();
+
+                System.out.println("Auto-login in corso...");
+                switchToMiningScene(this.loggedKeyPair);
+
+            } catch (Exception e) {
+                showError("Errore durante la creazione: " + e.getMessage());
+            }
+        }
+    }
+
+    // BOTTONE PER IL CARICAMENTO FILE
+    @FXML
+    private void handleLoadJson() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Seleziona il tuo file Identità");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+
+        File selectedFile = fileChooser.showOpenDialog(jsonPathField.getScene().getWindow());
+
+        if (selectedFile != null) {
+            jsonPathField.setText(selectedFile.getAbsolutePath());
+
+            // FACCIAMO APPARIRE IL TASTO ACCEDI
+            loginJsonButton.setVisible(true);
+            loginJsonButton.setManaged(true);
+        }
+    }
+
+    //BOTTONE DI LOGIN DOPO AVER CARICATO IL FILE
+    @FXML
+    private void handleFinalJsonLogin() {
+        String path = jsonPathField.getText();
+        if (!path.isEmpty()) {
+            try {
+                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(minerService.loadMnemonicFromFile(Path.of(path)));
+                System.out.println("Login da file JSON completato!");
+                switchToMiningScene(this.loggedKeyPair);
+            } catch (Exception e) {
+                showError("File JSON non valido.");
+            }
+        }
+    }
+
+
+    //CONTROLLO DELLA MNEMONICA INSERITA E IN CASO POSITIVO SWITCH ALLA PAGINA DI MINING
+    @FXML
+    private void handleManualLogin() {
+        String mnemonic = mnemonicTextArea.getText().trim();
+        if (minerService.isValidMnemonic(mnemonic)) {
+            try {
+                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(mnemonic);
+                System.out.println("Login effettuato con successo!");
+                switchToMiningScene(this.loggedKeyPair);
+                // Qui aggiungeremo il cambio scena verso la pagina di mining
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("Mnemonica non valida!");
+        }
+    }
+
+    //RENDERE VISIBILE LA TEXTAREA
+    @FXML
+    private void toggleManualInput() {
+        loadJsonBox.setVisible(false);
+        loadJsonBox.setManaged(false);
+        boolean isVisible = manualInputBox.isVisible();
+        manualInputBox.setVisible(!isVisible);
+        manualInputBox.setManaged(!isVisible);
+    }
+    //RENDERE VISIBILE IL FILE CHOOSER
+    @FXML
+    private void handleShowLoadArea() {
+        manualInputBox.setVisible(false);
+        manualInputBox.setManaged(false);
+        boolean isVisible = loadJsonBox.isVisible();
+        loadJsonBox.setVisible(!isVisible);
+        loadJsonBox.setManaged(!isVisible);
+        loadJsonBox.setOpacity(0); // Parte da invisibile
+
+        FadeTransition fade = new FadeTransition(Duration.millis(500), loadJsonBox);
+        fade.setFromValue(0.0);
+        fade.setToValue(1.0);
+        fade.play();
+    }
+
+    //FUNZIONE PER PASSARE DALLA PAGINA DI AUTENTICAZIONE ALLA PAGINA DI MINING
+    private void switchToMiningScene(KeyPair keys) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/mining.fxml"));
+            Parent root = loader.load();
+
+            // 1. Otteniamo il controller della pagina di mining
+            MiningController miningController = loader.getController();
+
+            // 2. Passiamo le chiavi (dovrai creare questo metodo nel MiningController)
+            miningController.setUserKeys(keys);
+
+            // 3. Cambiamo effettivamente la scena sul desktop
+            Stage stage = (Stage) mnemonicTextArea.getScene().getWindow();
+            stage.setScene(new Scene(root));
+            stage.setTitle("Mokamint Desktop Miner - Dashboard");
+            stage.show();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    // Metodo helper veloce per gli errori
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+}
+
+/*
+// BOTTONE PER IL LOGIN CON CHIAVE PUB E PRIV
+@FXML
+private void handleCombinedLogin() {
+    String mnemonic = mnemonicTextArea.getText().trim();
+    String privKeyHex = privateKeyField.getText().trim();
+
+    try {
+        if (!mnemonic.isEmpty()) {
+            // Priorità alla mnemonica
+            if (minerService.isValidMnemonic(mnemonic)) {
+                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(mnemonic);
+                System.out.println("Login via Mnemonica riuscito!");
+            } else {
+                showError("Le 12 parole inserite non sono valide.");
+                return;
+            }
+        }
+        else if (!privKeyHex.isEmpty()) {
+            // Se la mnemonica è vuota, proviamo con la chiave hex
+            this.loggedKeyPair = minerService.importKeyFromHex(privKeyHex);
+            System.out.println("Login via Chiave Privata riuscito!");
+        }
+        else {
+            showError("Inserisci almeno le 12 parole o la chiave privata.");
+            return;
+        }
+
+        // Se siamo arrivati qui, abbiamo le chiavi!
+        switchToMiningScene(this.loggedKeyPair);
+
+    } catch (Exception e) {
+        showError("Errore durante l'accesso: " + e.getMessage());
+    }
+}*/
+

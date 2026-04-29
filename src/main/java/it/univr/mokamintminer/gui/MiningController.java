@@ -12,9 +12,10 @@ import javafx.scene.control.TextField;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.security.KeyPair;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class GUIController {
+public class MiningController {
 
     @FXML
     private TextField endpointField;
@@ -51,6 +52,8 @@ public class GUIController {
 
     private final MinerService minerService = new MinerService();
 
+    private KeyPair userKeys;
+
     // PLOT
     private Task<Void> plotTask;
     private Thread plotThread;
@@ -60,6 +63,11 @@ public class GUIController {
 
     private final java.util.concurrent.atomic.AtomicBoolean simulationActive = new AtomicBoolean(false);
 
+    //PASSAGGIO CHIAVI
+    public void setUserKeys(KeyPair keys) {
+        this.userKeys = keys;
+        System.out.println("MiningController: Chiavi ricevute correttamente!");
+    }
 
     // CREATE PLOT
     @FXML
@@ -164,16 +172,21 @@ public class GUIController {
     // START MINING
     @FXML
     private void onStartMining() {
-        if (plotTask != null && plotTask.isRunning())
-            return;  // Mining disabilitato durante il plot
+        if (plotTask != null && plotTask.isRunning()) return;
 
         if (miner != null) {
             statusLabel.setText("Status: mining already running");
             return;
         }
 
-        String plotFile = plotFileField.getText().trim();
+        // --- AGGIUNTA: Controllo Chiavi ---
+        if (this.userKeys == null) {
+            statusLabel.setText("Status: Error - No identity loaded!");
+            log(" Errore: Chiavi non trovate. Torna al login.");
+            return;
+        }
 
+        String plotFile = plotFileField.getText().trim();
         if (plotFile.isEmpty()) {
             statusLabel.setText("Status: plot file missing");
             return;
@@ -187,13 +200,14 @@ public class GUIController {
             return;
         }
 
-        // Reset contatore deadlines ad ogni nuova sessione di mining
         updateDeadlinesLabel(0);
 
         try {
+            // --- MODIFICA: Passiamo 'this.userKeys' al costruttore ---
             miner = new DesktopMinerService(
                     endpointUri,
                     Path.of(plotFile),
+                    this.userKeys,
                     new DesktopMinerService.MinerListener() {
                         @Override
                         public void onConnected() {
@@ -223,12 +237,14 @@ public class GUIController {
                     }
             );
 
-            log(" Starting mining...");
+            log(" Starting mining with identity: " +
+                    it.univr.mokamintminer.services.MinerService.bytesToHex(userKeys.getPublic().getEncoded()).substring(0, 15) + "...");
             statusLabel.setText("Status: Mining started");
             startSimulationIfNoConnection();
 
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

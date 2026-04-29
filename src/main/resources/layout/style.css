@@ -1,3 +1,30 @@
-.root {
-    -fx-background-color: #E0E0E0;
+.main-container {
+    -fx-background-color: #f5f5f5;
+}
+
+.title-label {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #212121;
+}
+
+.button-primary {
+    -fx-background-color: #6200EE;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 10 20;
+}
+
+.button-secondary {
+    -fx-background-color: white;
+    -fx-text-fill: #6200EE;
+    -fx-border-color: #6200EE;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.text-area-mnemonic {
+    -fx-font-family: "Monospaced";
+    -fx-border-color: #e0e0e0;
 }
