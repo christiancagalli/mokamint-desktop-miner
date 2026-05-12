@@ -7,7 +7,8 @@
 <VBox xmlns="http://javafx.com/javafx"
       xmlns:fx="http://javafx.com/fxml"
       fx:controller="it.univr.mokamintminer.gui.LoginController"
-      spacing="20" alignment="CENTER" styleClass="main-container">
+      spacing="20" alignment="CENTER" prefWidth="700" prefHeight="500" styleClass="main-container">
+
 
     <stylesheets>
         <URL value="@style.css" />

@@ -30,6 +30,33 @@ import java.nio.file.Path;
 import java.security.KeyPair;
 
 public class MinerService {
+    private String nodeUri;
+    private String plotPath;
+    private int plotSize;
+    private SignatureAlgorithm signatureAlgorithm;
+
+
+    public void configure(String uri, String path, String size, SignatureAlgorithm signatureAlg) {
+        this.nodeUri = uri;
+        this.plotPath = path;
+        // Convertiamo la stringa size in int se non lo è già
+        this.plotSize = Integer.parseInt(size);
+        this.signatureAlgorithm = signatureAlg;
+
+        System.out.println("MinerService configurato correttamente:");
+        System.out.println(" - URI: " + nodeUri);
+        System.out.println(" - Algoritmo: " + signatureAlgorithm.getName());
+    }
+
+    // Aggiungi dei Getter per poter recuperare questi dati dopo
+    public SignatureAlgorithm getSignatureAlgorithm() {
+        return signatureAlgorithm;
+    }
+
+    public String getPlotPath() {
+        return plotPath;
+    }
+
 
     public interface ProgressListener {
         void onProgress(int percent);
@@ -45,15 +72,15 @@ public class MinerService {
                            ProgressListener listener) throws Exception {
 
         // 1. Definiamo gli algoritmi
-        SignatureAlgorithm signature = SignatureAlgorithms.ed25519();
+
         HashingAlgorithm hashing = HashingAlgorithms.shabal256();
 
         // 2. Integrazione: Usiamo le TUE chiavi per entrambi i ruoli (o puoi differenziarle)
         Prolog prolog = Prologs.of(
                 "desktop-miner",
-                signature,
+                signatureAlgorithm,
                 myKeys.getPublic(), // Chiave per i blocchi
-                signature,
+                signatureAlgorithm,
                 myKeys.getPublic(), // Chiave per le transazioni
                 new byte[0]
         );
@@ -90,14 +117,13 @@ public class MinerService {
 
     // 2. Ricava la coppia di chiavi dalle 12 parole
     public KeyPair deriveKeyPairFromMnemonic(String mnemonic) throws Exception {
-        SignatureAlgorithm signature = SignatureAlgorithms.ed25519();
-        // Dividiamo la mnemonica in array di parole
+        if (signatureAlgorithm == null) throw new Exception("Algoritmo non configurato!");        // Dividiamo la mnemonica in array di parole
         String[] words = mnemonic.split(" ");
         BIP39Mnemonic b39 = BIP39Mnemonics.of(words);
         // Trasformiamo le parole in byte di entropia
         byte[] entropyBytes = b39.getBytes();
         // Generiamo le chiavi dai byte
-        return signature.getKeyPair(entropyBytes, "");
+        return signatureAlgorithm.getKeyPair(entropyBytes, "");
     }
 
     public boolean isValidMnemonic(String mnemonic) {
@@ -159,7 +185,7 @@ public class MinerService {
         return hexString.toString();
     }
 
-
+}
 
     /*public KeyPair importKeyFromHex(String privateKeyHex) throws Exception {
         // 1. Converti la stringa hex in byte[]
@@ -178,4 +204,3 @@ public class MinerService {
     }
     */
 
-}

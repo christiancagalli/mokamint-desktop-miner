@@ -1,6 +1,8 @@
 package it.univr.mokamintminer.gui;
 
 import io.hotmoka.crypto.api.BIP39Mnemonic;
+import io.mokamint.miner.service.MinerServices;
+import io.mokamint.node.remote.api.RemoteNode;
 import it.univr.mokamintminer.services.MinerService;
 import javafx.animation.FadeTransition;
 import javafx.fxml.FXML;
@@ -18,6 +20,7 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.security.KeyPair;
 
@@ -60,18 +63,17 @@ public class LoginController {
 
         if (file != null) {
             try {
-                // Generiamo le chiavi e salviamo
+                // Genera le chiavi e salva
                 this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(newMnemonic);
                 minerService.saveIDFile(newMnemonic, this.loggedKeyPair, Path.of(file.getAbsolutePath()));
 
-                // Mostriamo il pop-up informativo (così l'utente vede le parole almeno una volta)
+                // Mostra il pop-up informativo (mostra le parole)
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
                 alert.setTitle("Identità Creata");
                 alert.setHeaderText("Salvataggio completato!");
                 alert.setContentText("Il file JSON è pronto. \n\nPAROLE DI RECUPERO (Scrivile ora!):\n" + newMnemonic);
 
-                // Quando l'utente preme OK sul pop-up, lo portiamo dentro l'app
-                alert.showAndWait();
+                alert.showAndWait();    // attendo che l'utente prema ok sul pop-up
 
                 System.out.println("Auto-login in corso...");
                 switchToMiningScene(this.loggedKeyPair);
@@ -95,7 +97,7 @@ public class LoginController {
         if (selectedFile != null) {
             jsonPathField.setText(selectedFile.getAbsolutePath());
 
-            // FACCIAMO APPARIRE IL TASTO ACCEDI
+            // MOSTRA IL TASTO ACCEDI
             loginJsonButton.setVisible(true);
             loginJsonButton.setManaged(true);
         }
@@ -190,7 +192,31 @@ public class LoginController {
         alert.setContentText(message);
         alert.showAndWait();
     }
+
+    public void setConnectionData(String uri, String path, String size) {
+        System.out.println("Dati ricevuti: "+ uri);
+        try{
+            URI nodeUri = new URI(uri);
+            var libMinerService = MinerServices.of(nodeUri, 5000);
+            // 3. Otteniamo la specifica (che contiene l'algoritmo)
+            var miningSpecification = libMinerService.getMiningSpecification();
+
+            // 4. Estraiamo l'algoritmo di firma
+            var signatureAlg = miningSpecification.getSignatureForBlocks();
+
+            // 5. Configura il TUO servizio locale per la tesi
+            this.minerService.configure(uri, path, size, signatureAlg);
+
+            System.out.println("Specifiche caricate! Algoritmo: " + signatureAlg.getName());
+        }catch (Exception e) {
+            e.printStackTrace();
+            showError("Errore di connessione: " + e.getMessage());
+        }
+
+    }
 }
+
+
 
 /*
 // BOTTONE PER IL LOGIN CON CHIAVE PUB E PRIV
