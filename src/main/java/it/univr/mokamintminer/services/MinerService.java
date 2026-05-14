@@ -28,19 +28,20 @@ import java.util.Base64;
 
 import java.nio.file.Path;
 import java.security.KeyPair;
+import java.util.function.Consumer;
 
 public class MinerService {
     private String nodeUri;
     private String plotPath;
-    private int plotSize;
+    //private int plotSize;                                                     PLOTSIZE
     private SignatureAlgorithm signatureAlgorithm;
 
 
-    public void configure(String uri, String path, String size, SignatureAlgorithm signatureAlg) {
+    public void configure(String uri, String path, /*String size,*/ SignatureAlgorithm signatureAlg) {                          //PLOTSIZE
         this.nodeUri = uri;
         this.plotPath = path;
         // Convertiamo la stringa size in int se non lo è già
-        this.plotSize = Integer.parseInt(size);
+        //this.plotSize = Integer.parseInt(size);                                   PLOTSIZE
         this.signatureAlgorithm = signatureAlg;
 
         System.out.println("MinerService configurato correttamente:");
@@ -57,6 +58,11 @@ public class MinerService {
         return plotPath;
     }
 
+    public String getNodeUri() {
+        return nodeUri;
+    }
+
+    //public int getPlotSize() { return plotSize; }                                                 PLOTSIZE
 
     public interface ProgressListener {
         void onProgress(int percent);
@@ -69,7 +75,8 @@ public class MinerService {
                            KeyPair myKeys,
                            long startNonce,
                            long plotSize,
-                           ProgressListener listener) throws Exception {
+                           ProgressListener listener,
+                           Consumer<String> logger) throws Exception {
 
         // 1. Definiamo gli algoritmi
 
@@ -77,7 +84,7 @@ public class MinerService {
 
         // 2. Integrazione: Usiamo le TUE chiavi per entrambi i ruoli (o puoi differenziarle)
         Prolog prolog = Prologs.of(
-                "desktop-miner",
+                "mokamint",
                 signatureAlgorithm,
                 myKeys.getPublic(), // Chiave per i blocchi
                 signatureAlgorithm,
@@ -87,9 +94,9 @@ public class MinerService {
 
         // 3. Calcolo metadati per i log
         long sizeInMB = (plotSize * 262144) / (1024 * 1024);
-        System.out.println("[PLOT] Avvio creazione plot deterministico:");
-        System.out.println("[PLOT] Percorso: " + plotPath.toAbsolutePath());
-        System.out.println("[PLOT] Dimensione stimata: " + sizeInMB + " MB");
+        logger.accept("[PLOT] Avvio creazione plot deterministico:");
+        logger.accept("[PLOT] Percorso: " + plotPath.toAbsolutePath());
+        logger.accept("[PLOT] Dimensione stimata: " + sizeInMB + " MB");
 
         // 4. Esecuzione effettiva tramite la libreria Plots
         Plots.create(

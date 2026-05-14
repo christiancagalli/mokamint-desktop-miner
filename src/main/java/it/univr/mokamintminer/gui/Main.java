@@ -13,6 +13,7 @@ public class Main extends Application {
         Scene scene = new Scene(fxmlLoader.load());
         stage.setTitle("Mokamint Desktop Miner");
         stage.setScene(scene);
+        stage.centerOnScreen();
         stage.show();
     }
 

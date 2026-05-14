@@ -32,6 +32,7 @@ public class LoginController {
     @FXML private TextField jsonPathField;
     @FXML private Button loginJsonButton;
 
+
     @FXML
     private TextArea mnemonicTextArea;
 
@@ -58,7 +59,12 @@ public class LoginController {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Salva la tua Identità (.json)");
         fileChooser.setInitialFileName("mokamint_identity.json");
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+
+        //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
+        String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
+        File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
+        fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
+
         File file = fileChooser.showSaveDialog(mnemonicTextArea.getScene().getWindow());
 
         if (file != null) {
@@ -90,7 +96,11 @@ public class LoginController {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Seleziona il tuo file Identità");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
+
+        //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
+        String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
+        File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
+        fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
 
         File selectedFile = fileChooser.showOpenDialog(jsonPathField.getScene().getWindow());
 
@@ -145,6 +155,11 @@ public class LoginController {
         boolean isVisible = manualInputBox.isVisible();
         manualInputBox.setVisible(!isVisible);
         manualInputBox.setManaged(!isVisible);
+        manualInputBox.setOpacity(0);
+        FadeTransition fade = new FadeTransition(Duration.millis(500), manualInputBox);
+        fade.setFromValue(0.0);
+        fade.setToValue(1.0);
+        fade.play();
     }
     //RENDERE VISIBILE IL FILE CHOOSER
     @FXML
@@ -171,13 +186,15 @@ public class LoginController {
             // 1. Otteniamo il controller della pagina di mining
             MiningController miningController = loader.getController();
 
-            // 2. Passiamo le chiavi (dovrai creare questo metodo nel MiningController)
-            miningController.setUserKeys(keys);
+            // 2. Passiamo TUTTI i dati necessari (Service + Chiavi)
+            // Usiamo il nuovo metodo che abbiamo creato nel MiningController
+            miningController.setMiningData(this.minerService, keys);
 
             // 3. Cambiamo effettivamente la scena sul desktop
             Stage stage = (Stage) mnemonicTextArea.getScene().getWindow();
             stage.setScene(new Scene(root));
             stage.setTitle("Mokamint Desktop Miner - Dashboard");
+            stage.centerOnScreen();
             stage.show();
 
         } catch (IOException e) {
@@ -193,7 +210,7 @@ public class LoginController {
         alert.showAndWait();
     }
 
-    public void setConnectionData(String uri, String path, String size) {
+    public void setConnectionData(String uri, String path/*, String size*/) {                           //PLOTSIZE
         System.out.println("Dati ricevuti: "+ uri);
         try{
             URI nodeUri = new URI(uri);
@@ -205,7 +222,7 @@ public class LoginController {
             var signatureAlg = miningSpecification.getSignatureForBlocks();
 
             // 5. Configura il TUO servizio locale per la tesi
-            this.minerService.configure(uri, path, size, signatureAlg);
+            this.minerService.configure(uri, path, /*size,*/ signatureAlg);                     //PLOTSIZE
 
             System.out.println("Specifiche caricate! Algoritmo: " + signatureAlg.getName());
         }catch (Exception e) {

@@ -5,6 +5,305 @@ import it.univr.mokamintminer.services.MinerService;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+
+import java.io.File;
+import java.net.URI;
+import java.nio.file.Path;
+import java.security.KeyPair;
+
+public class MiningController {
+
+    @FXML private Label statusLabel;
+    @FXML private Label pubKeyLabel;
+    @FXML private Label plotPathLabel;
+    @FXML private ProgressBar progressBar;
+    @FXML private TextArea logArea;
+    @FXML private Button btnCreatePlot;
+    @FXML private Button startMiningButton;
+    @FXML private Button stopMiningButton;
+    @FXML private VBox sizeInputBox;
+    @FXML private TextField localSizeField;
+
+    private DesktopMinerService miner;
+    private MinerService minerService;
+    private KeyPair userKeys;
+    private Task<Void> plotTask;
+
+    /**
+     * Riceve i dati dai controller precedenti.
+     */
+    public void setMiningData(MinerService service, KeyPair keys) {
+        this.minerService = service;
+        this.userKeys = keys;
+
+        // Popoliamo la UI con i dati salvati
+        String pubKeyHex = MinerService.bytesToHex(keys.getPublic().getEncoded());
+        pubKeyLabel.setText(pubKeyHex.substring(0, 20) + "...");
+        plotPathLabel.setText(minerService.getPlotPath());
+
+        startMiningButton.setDisable(false); // Acceso (se il plot esiste)
+        stopMiningButton.setDisable(true);
+        updateButtonsState();
+        log("Dati caricati. Pronto per il mining.");
+    }
+
+    private void updateButtonsState() {
+        File plotFile = new File(minerService.getPlotPath());
+        boolean exists = plotFile.exists();
+
+        if (exists) {
+            // FILE ESISTE: Nascondi input size e disabilita "Genera"
+            sizeInputBox.setVisible(false);
+            sizeInputBox.setManaged(false);
+            btnCreatePlot.setDisable(true);
+            startMiningButton.setDisable(false);
+            statusLabel.setText("Status: Plot pronto per il mining.");
+        } else {
+            // FILE MANCANTE: Mostra input size e abilita "Genera"
+            sizeInputBox.setVisible(true);
+            sizeInputBox.setManaged(true);
+            btnCreatePlot.setDisable(false);
+            startMiningButton.setDisable(true);
+            statusLabel.setText("Status: Inserisci la dimensione per generare il plot.");
+        }
+    }
+
+    /**
+     * Gestisce la creazione del file di Plot.
+     */
+    @FXML
+    private void handleCreatePlot() {
+        if (plotTask != null && plotTask.isRunning()) return;
+        //int plotSize = minerService.getPlotSize();                                    //PLOTSIZE
+
+        String sizeText = localSizeField.getText().trim();
+        if (sizeText.isEmpty()) {
+            log("Errore: Inserisci una dimensione!");
+            return;
+        }
+
+        int size = Integer.parseInt(sizeText);
+
+        btnCreatePlot.setDisable(true);
+        startMiningButton.setDisable(true);
+
+        plotTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                updateMessage("Creazione Plot (" + size + " nonces)...");
+
+                // Usiamo il metodo che abbiamo scritto nel MinerService
+                minerService.createPlot(
+                        Path.of(minerService.getPlotPath()),
+                        userKeys,
+                        0L, // startNonce
+                        size, // plotSize (puoi recuperarlo dal service)
+                        progress -> updateProgress(progress, 100),
+                        message -> log(message)
+                );
+                return null;
+            }
+        };
+
+        // Colleghiamo la barra di progresso e i messaggi
+        progressBar.progressProperty().bind(plotTask.progressProperty());
+        statusLabel.textProperty().bind(plotTask.messageProperty());
+
+        plotTask.setOnSucceeded(e -> {
+            unbindUI();
+            log("Plot completato con successo! " + size + " nonces creati.");
+            statusLabel.setText("Status: Plot pronto.");
+            updateButtonsState();
+        });
+
+        plotTask.setOnFailed(e -> {
+            unbindUI();
+            log("Errore durante il plotting: " + plotTask.getException().getMessage());
+            statusLabel.setText("Status: Errore creazione.");
+        });
+
+        new Thread(plotTask).start();
+    }
+
+    @FXML
+    private void onStartMining() {
+        log("Avvio sessione di mining...");
+
+        try {
+            // 1. Recuperiamo i dati dal service
+            URI uri = URI.create(minerService.getNodeUri());
+            Path path = Path.of(minerService.getPlotPath());
+
+            // 2. Creiamo il miner reale
+            // Passiamo un listener che intercetta i log e le deadline
+            miner = new DesktopMinerService(
+                    uri,
+                    path,
+                    userKeys,
+                    new DesktopMinerService.MinerListener() {
+                        @Override
+                        public void onConnected() {
+                            Platform.runLater(() -> {
+                                log("Connesso al nodo: " + uri);
+                                statusLabel.setText("Status: Connesso");
+                            });
+                        }
+
+                        @Override
+                        public void onDisconnected() {
+                            Platform.runLater(() -> {
+                                log("Disconnesso dal nodo.");
+                                statusLabel.setText("Status: Disconnesso");
+                                onStopMining(); // Reset interfaccia
+                            });
+                        }
+
+                        @Override
+                        public void onDeadline(int totalDeadlines) {
+                            Platform.runLater(() -> {
+                                log("Nuova deadline trovata! (Totale: " + totalDeadlines + ")");
+                                statusLabel.setText("Status: Mining attivo...");
+                            });
+                        }
+
+                        // Se la tua versione di DesktopMinerService lo supporta:
+                        public void onMessage(String message) {
+                            Platform.runLater(() -> log("INFO: " + message));
+                        }
+                    }
+            );
+
+            startMiningButton.setDisable(true);
+            stopMiningButton.setDisable(false);
+            statusLabel.setText("Status: Inizializzazione...");
+
+        } catch (Exception e) {
+            log("Errore fatale: " + e.getMessage());
+            statusLabel.setText("Status: Errore");
+            e.printStackTrace();
+        }
+    }
+
+    @FXML
+    private void onStopMining() {
+        if (miner != null) {
+            miner.close(); // Metodo fondamentale per chiudere il WebSocket
+            miner = null;
+        }
+        startMiningButton.setDisable(false);
+        stopMiningButton.setDisable(true);
+        log("Mining fermato.");
+        statusLabel.setText("Status: Pronto");
+    }
+
+    // Helper per pulire i collegamenti UI
+    private void unbindUI() {
+        progressBar.progressProperty().unbind();
+        statusLabel.textProperty().unbind();
+    }
+
+    // Helper per scrivere i log nella TextArea
+    private void log(String message) {
+        Platform.runLater(() -> {
+            logArea.appendText("[" + java.time.LocalTime.now().withNano(0) + "] " + message + "\n");
+        });
+    }
+}
+
+ /*@FXML
+    private void onStartMining() {
+        log("Identificazione rete in corso...");
+        startMiningButton.setDisable(true);
+        statusLabel.setText("Status: Identificazione...");
+
+        // STEP 1: Creiamo un Task per recuperare il ChainID
+        Task<String> getChainIdTask = new Task<>() {
+            @Override
+            protected String call() throws Exception {
+                URI uri = URI.create(minerService.getNodeUri());
+                // Apriamo una connessione temporanea al nodo per leggere le info
+                try (var node = io.mokamint.node.remote.RemotePublicNodes.of(uri, 5000)) {
+                    return node.getInfo().toString();
+                }
+            }
+        };
+
+        // Cosa fare se il Task ha successo
+        getChainIdTask.setOnSucceeded(e -> {
+            String discoveredChainId = getChainIdTask.getValue();
+            log("Rete identificata: " + discoveredChainId);
+
+            // STEP 2: Facciamo partire il miner vero e proprio con l'ID scoperto
+            runActualMining(discoveredChainId);
+        });
+
+        // Cosa fare se il Task fallisce (es. nodo spento)
+        getChainIdTask.setOnFailed(e -> {
+            Throwable exception = getChainIdTask.getException();
+            log("Errore identificazione: " + exception.getMessage());
+            statusLabel.setText("Status: Errore connessione");
+            startMiningButton.setDisable(false);
+        });
+
+        new Thread(getChainIdTask).start();
+    }
+
+    private void runActualMining(String chainId) {
+        try {
+            miner = new DesktopMinerService(
+                    URI.create(minerService.getNodeUri()),
+                    chainId, // <-- Ora passiamo l'ID dinamico!
+                    Path.of(minerService.getPlotPath()),
+                    userKeys,
+                    new DesktopMinerService.MinerListener() {
+                        @Override
+                        public void onConnected() {
+                            Platform.runLater(() -> {
+                                log("Miner connesso e operativo.");
+                                statusLabel.setText("Status: Mining attivo (" + chainId + ")");
+                                stopMiningButton.setDisable(false);
+                            });
+                        }
+
+                        @Override
+                        public void onDisconnected() {
+                            Platform.runLater(() -> {
+                                log("Connessione persa.");
+                                onStopMining();
+                            });
+                        }
+
+                        @Override
+                        public void onDeadline(int total) {
+                            Platform.runLater(() -> log("Nuova deadline trovata! (Totale: " + total + ")"));
+                        }
+
+                        @Override
+                        public void onMessage(String msg) {
+                            Platform.runLater(() -> log(msg));
+                        }
+                    }
+            );
+        } catch (Exception ex) {
+            log("Errore durante l'avvio del motore: " + ex.getMessage());
+            startMiningButton.setDisable(false);
+        }
+    }*/
+
+
+
+
+
+/*package it.univr.mokamintminer.gui;
+
+import it.univr.mokamintminer.core.DesktopMinerService;
+import it.univr.mokamintminer.services.MinerService;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
@@ -120,7 +419,7 @@ public class MiningController {
                             updateProgress(progress, 100);
                             updateMessage("Progress: " + progress + "%");
                         }
-                );*/
+                );
 
                 return null;
             }
@@ -295,8 +594,9 @@ public class MiningController {
             logArea.setScrollTop(Double.MAX_VALUE);
         });
     }
+}
 
-    private void startSimulationIfNoConnection() {
+/*private void startSimulationIfNoConnection() {
         // Attiva il flag prima di partire
         simulationActive.set(true);
 
@@ -329,7 +629,4 @@ public class MiningController {
 
             } catch (InterruptedException ignored) {}
         }, "simulation-thread").start();
-    }
-
-}
-
+    }*/

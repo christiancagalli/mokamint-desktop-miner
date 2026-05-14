@@ -9,7 +9,7 @@
 }
 
 .button-primary {
-    -fx-background-color: #6200EE;
+    -fx-background-color: #9c64ed;
     -fx-text-fill: white;
     -fx-font-weight: bold;
     -fx-background-radius: 8px;
@@ -18,8 +18,8 @@
 
 .button-secondary {
     -fx-background-color: white;
-    -fx-text-fill: #6200EE;
-    -fx-border-color: #6200EE;
+    -fx-text-fill: #9c64ed;
+    -fx-border-color: #9c64ed;
     -fx-border-radius: 8px;
     -fx-background-radius: 8px;
 }

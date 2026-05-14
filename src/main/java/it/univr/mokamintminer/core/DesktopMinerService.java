@@ -20,13 +20,14 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
         void onConnected();
         void onDisconnected();
         void onDeadline(int totalDeadlines);
+        void onMessage(String msg);
     }
 
-    public DesktopMinerService(URI endpoint, Path plotPath, KeyPair keys, MinerListener listener) throws Exception {
+    public DesktopMinerService(URI endpoint, /*String chainId,*/ Path plotPath, KeyPair keys, MinerListener listener) throws Exception {
         super(
                 Optional.of(
                         LocalMiners.of(
-                                "Desktop Miner",
+                                "mokamint",
                                 "Miner GUI",
                                 (signature, publicKey) -> Optional.of(new java.math.BigInteger(1, keys.getPrivate().getEncoded())),
                                 Plots.load(plotPath)
@@ -40,9 +41,16 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
         this.listener = listener;
     }
 
+    // Metodo helper per loggare ovunque
+    private void internalLog(String msg) {
+        System.out.println("[DesktopMiner] " + msg); // Terminale
+        if (listener != null) listener.onMessage(msg); // GUI
+    }
+
     @Override
     protected void onConnected() {
         super.onConnected();
+        internalLog("Connessione stabilita con il nodo.");
 
         if (listener != null)
             listener.onConnected();
@@ -51,6 +59,7 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
     @Override
     protected void onDisconnected() {
         super.onDisconnected();
+        internalLog("Connessione interrotta.");
 
         if (listener != null)
             listener.onDisconnected();
@@ -60,6 +69,8 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
     protected void onDeadlineComputed(Deadline deadline) {
         super.onDeadlineComputed(deadline);
         int total = deadlines.incrementAndGet();
+        String deadlineValue = io.hotmoka.crypto.Hex.toHexString(deadline.getValue());
+        internalLog("Nuova deadline calcolata: " + deadlineValue);
 
         if (listener != null)
             listener.onDeadline(total);

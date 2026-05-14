@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import java.net.URL?>
+
+<VBox spacing="20" alignment="CENTER" prefWidth="500" prefHeight="400"
+      xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="it.univr.mokamintminer.gui.ConnectionController"
+      styleClass="main-container">
+
+    <stylesheets>
+        <URL value="@style.css" />
+    </stylesheets>
+
+    <padding><Insets top="40" right="40" bottom="40" left="40"/></padding>
+
+    <Label text="Configurazione Miner" style="-fx-font-size: 24px; -fx-text-fill: black; -fx-font-weight: bold;"/>
+
+    <VBox spacing="10">
+        <Label text="Indirizzo Nodo (URI):" style="-fx-text-fill: #aaa;"/>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <ComboBox fx:id="uriComboBox"
+                      editable="true"
+                      HBox.hgrow="ALWAYS"
+                      maxWidth="Infinity"
+                      promptText="http://localhost:8080"/>
+
+            <Button text="✕"
+                    onAction="#handleRemoveUri"
+                    minWidth="30.0"
+                    style="-fx-background-color: white;
+               -fx-border-color: #ff4444;
+               -fx-border-radius: 5;
+               -fx-background-radius: 5;
+               -fx-text-fill: #ff4444;
+               -fx-font-weight: bold;
+               -fx-cursor: hand;" />
+        </HBox>
+    </VBox>
+
+    <VBox spacing="10">
+        <Label text="Percorso File Plot (.plot):" style="-fx-text-fill: #aaa;"/>
+        <HBox spacing="10">
+            <TextField fx:id="plotPathField" HBox.hgrow="ALWAYS" promptText="Seleziona o trascina il file..."/>
+            <Button text="Sfoglia" onAction="#handleBrowsePlot"/>
+        </HBox>
+    </VBox>
+
+    <!--
+    <VBox spacing="10">
+        <Label text="Dimensione Plot (Nonces):" style="-fx-text-fill: #aaa;"/>
+        <TextField fx:id="plotSizeField" text="50"/>
+    </VBox>
+    -->
+
+    <Region VBox.vgrow="ALWAYS" />
+
+    <Button text="Connetti al Nodo" onAction="#handleConnect"
+            maxWidth="Infinity" prefHeight="45"
+            styleClass="button-primary"/>
+
+    <Label fx:id="errorLabel" text="" style="-fx-text-fill: #ff4444; -fx-font-weight: bold;" visible="false" />
+</VBox>

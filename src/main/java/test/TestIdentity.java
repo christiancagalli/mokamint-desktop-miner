@@ -56,9 +56,9 @@ public class TestIdentity {
             Path pathPlot = Path.of("mio_test.plot");
             long nonces = 10; // Molto piccolo per il test veloce
 
-            service.createPlot(pathPlot, chiaviDalJson, 0, nonces, progress -> {
+            /*service.createPlot(pathPlot, chiaviDalJson, 0, nonces, progress -> {
                 System.out.println("Progresso: " + progress + "%");
-            });
+            });*/
 
         } catch (Exception e) {
             System.err.println("ERRORE DURANTE IL TEST:");
