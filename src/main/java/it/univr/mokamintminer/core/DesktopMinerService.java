@@ -23,12 +23,21 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
         void onMessage(String msg);
     }
 
-    public DesktopMinerService(URI endpoint, /*String chainId,*/ Path plotPath, KeyPair keys, MinerListener listener) throws Exception {
+    public DesktopMinerService(URI endpoint, String chainId, Path plotPath, KeyPair keys, MinerListener listener) throws Exception {
         super(
                 Optional.of(
                         LocalMiners.of(
-                                "mokamint",
+                                chainId,
                                 "Miner GUI",
+
+                                /*(signature, publicKey) -> {
+                                    try {
+                                        byte[] rawPriv = io.hotmoka.crypto.SignatureAlgorithms.ed25519().encodingOf(keys.getPrivate());
+                                        return Optional.of(new java.math.BigInteger(1, rawPriv));
+                                    } catch (Exception e) {
+                                        return Optional.empty();
+                                    }
+                                },*/
                                 (signature, publicKey) -> Optional.of(new java.math.BigInteger(1, keys.getPrivate().getEncoded())),
                                 Plots.load(plotPath)
                         )

@@ -53,7 +53,7 @@ public class LoginController {
         loadJsonBox.setVisible(false);
         loadJsonBox.setManaged(false);
 
-        String newMnemonic = minerService.generateNewMnemonic();
+
 
         // Configura il salvataggio file
         FileChooser fileChooser = new FileChooser();
@@ -70,6 +70,8 @@ public class LoginController {
         if (file != null) {
             try {
                 // Genera le chiavi e salva
+                String newMnemonic = minerService.generateNewMnemonic();
+
                 this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(newMnemonic);
                 minerService.saveIDFile(newMnemonic, this.loggedKeyPair, Path.of(file.getAbsolutePath()));
 
@@ -81,7 +83,7 @@ public class LoginController {
 
                 alert.showAndWait();    // attendo che l'utente prema ok sul pop-up
 
-                System.out.println("Auto-login in corso...");
+                System.out.println("Auto-login in corso... chiavi: " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
 
             } catch (Exception e) {
@@ -120,7 +122,7 @@ public class LoginController {
         if (!path.isEmpty()) {
             try {
                 this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(minerService.loadMnemonicFromFile(Path.of(path)));
-                System.out.println("Login da file JSON completato!");
+                System.out.println("Login da file JSON completato! chiavi: " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
             } catch (Exception e) {
                 showError("File JSON non valido.");
@@ -136,7 +138,7 @@ public class LoginController {
         if (minerService.isValidMnemonic(mnemonic)) {
             try {
                 this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(mnemonic);
-                System.out.println("Login effettuato con successo!");
+                System.out.println("Login effettuato con successo! chiavi : " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
                 // Qui aggiungeremo il cambio scena verso la pagina di mining
             } catch (Exception e) {
@@ -210,11 +212,13 @@ public class LoginController {
         alert.showAndWait();
     }
 
-    public void setConnectionData(String uri, String path/*, String size*/) {                           //PLOTSIZE
+    public void setConnectionData(String uri, String path) {
         System.out.println("Dati ricevuti: "+ uri);
         try{
             URI nodeUri = new URI(uri);
             var libMinerService = MinerServices.of(nodeUri, 5000);
+            String chainID = libMinerService.getMiningSpecification().getChainId(); // Otteniamo il chainID
+
             // 3. Otteniamo la specifica (che contiene l'algoritmo)
             var miningSpecification = libMinerService.getMiningSpecification();
 
@@ -222,7 +226,7 @@ public class LoginController {
             var signatureAlg = miningSpecification.getSignatureForBlocks();
 
             // 5. Configura il TUO servizio locale per la tesi
-            this.minerService.configure(uri, path, /*size,*/ signatureAlg);                     //PLOTSIZE
+            this.minerService.configure(uri, path, signatureAlg, chainID);
 
             System.out.println("Specifiche caricate! Algoritmo: " + signatureAlg.getName());
         }catch (Exception e) {
@@ -232,42 +236,3 @@ public class LoginController {
 
     }
 }
-
-
-
-/*
-// BOTTONE PER IL LOGIN CON CHIAVE PUB E PRIV
-@FXML
-private void handleCombinedLogin() {
-    String mnemonic = mnemonicTextArea.getText().trim();
-    String privKeyHex = privateKeyField.getText().trim();
-
-    try {
-        if (!mnemonic.isEmpty()) {
-            // Priorità alla mnemonica
-            if (minerService.isValidMnemonic(mnemonic)) {
-                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(mnemonic);
-                System.out.println("Login via Mnemonica riuscito!");
-            } else {
-                showError("Le 12 parole inserite non sono valide.");
-                return;
-            }
-        }
-        else if (!privKeyHex.isEmpty()) {
-            // Se la mnemonica è vuota, proviamo con la chiave hex
-            this.loggedKeyPair = minerService.importKeyFromHex(privKeyHex);
-            System.out.println("Login via Chiave Privata riuscito!");
-        }
-        else {
-            showError("Inserisci almeno le 12 parole o la chiave privata.");
-            return;
-        }
-
-        // Se siamo arrivati qui, abbiamo le chiavi!
-        switchToMiningScene(this.loggedKeyPair);
-
-    } catch (Exception e) {
-        showError("Errore durante l'accesso: " + e.getMessage());
-    }
-}*/
-

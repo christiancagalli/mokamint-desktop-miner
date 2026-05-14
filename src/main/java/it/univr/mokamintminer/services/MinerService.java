@@ -33,43 +33,33 @@ import java.util.function.Consumer;
 public class MinerService {
     private String nodeUri;
     private String plotPath;
-    //private int plotSize;                                                     PLOTSIZE
     private SignatureAlgorithm signatureAlgorithm;
+    private String chainID;
 
 
-    public void configure(String uri, String path, /*String size,*/ SignatureAlgorithm signatureAlg) {                          //PLOTSIZE
+    public void configure(String uri, String path, SignatureAlgorithm signatureAlg, String chainID) {
         this.nodeUri = uri;
         this.plotPath = path;
-        // Convertiamo la stringa size in int se non lo è già
-        //this.plotSize = Integer.parseInt(size);                                   PLOTSIZE
         this.signatureAlgorithm = signatureAlg;
+        this.chainID = chainID;
 
         System.out.println("MinerService configurato correttamente:");
         System.out.println(" - URI: " + nodeUri);
         System.out.println(" - Algoritmo: " + signatureAlgorithm.getName());
+        System.out.println(" - ChainID: " + chainID);
     }
 
-    // Aggiungi dei Getter per poter recuperare questi dati dopo
-    public SignatureAlgorithm getSignatureAlgorithm() {
-        return signatureAlgorithm;
-    }
+    public SignatureAlgorithm getSignatureAlgorithm() { return signatureAlgorithm; }
 
-    public String getPlotPath() {
-        return plotPath;
-    }
+    public String getPlotPath() { return plotPath; }
 
-    public String getNodeUri() {
-        return nodeUri;
-    }
+    public String getNodeUri() { return nodeUri; }
 
-    //public int getPlotSize() { return plotSize; }                                                 PLOTSIZE
+    public String getChainID(){ return chainID; }
 
     public interface ProgressListener {
         void onProgress(int percent);
     }
-
-    // Valore di default se l'utente non specifica nulla
-    public static final long DEFAULT_PLOT_SIZE = 1000;
 
     public void createPlot(Path plotPath,
                            KeyPair myKeys,
@@ -78,13 +68,12 @@ public class MinerService {
                            ProgressListener listener,
                            Consumer<String> logger) throws Exception {
 
-        // 1. Definiamo gli algoritmi
-
+        // Algoritmo di hashing
         HashingAlgorithm hashing = HashingAlgorithms.shabal256();
 
-        // 2. Integrazione: Usiamo le TUE chiavi per entrambi i ruoli (o puoi differenziarle)
+        // Creazione prolog
         Prolog prolog = Prologs.of(
-                "mokamint",
+                this.chainID,
                 signatureAlgorithm,
                 myKeys.getPublic(), // Chiave per i blocchi
                 signatureAlgorithm,
@@ -92,13 +81,12 @@ public class MinerService {
                 new byte[0]
         );
 
-        // 3. Calcolo metadati per i log
         long sizeInMB = (plotSize * 262144) / (1024 * 1024);
         logger.accept("[PLOT] Avvio creazione plot deterministico:");
         logger.accept("[PLOT] Percorso: " + plotPath.toAbsolutePath());
         logger.accept("[PLOT] Dimensione stimata: " + sizeInMB + " MB");
 
-        // 4. Esecuzione effettiva tramite la libreria Plots
+        // Esecuzione effettiva tramite la libreria Plots
         Plots.create(
                 plotPath,
                 prolog,
@@ -116,16 +104,16 @@ public class MinerService {
 
     // 1. Genera 12 parole casuali
     public String generateNewMnemonic() {
-        Entropy entropy = Entropies.random();       //genero l'entropia
+        Entropy entropy = Entropies.random();              //genero l'entropia
         byte[] bytes = entropy.getEntropyAsBytes();
-        BIP39Mnemonic mnemonicObject = BIP39Mnemonics.of(bytes);        // uniamo le parole con uno spazio
-        return mnemonicObject.stream().collect(java.util.stream.Collectors.joining(" "));  //genera un flusso di parole e poi le cattura e le separa con uno spazio
+        BIP39Mnemonic mnemonicObject = BIP39Mnemonics.of(bytes);     // uniamo le parole con uno spazio
+        return mnemonicObject.stream().collect(java.util.stream.Collectors.joining(" "));   //genera un flusso di parole e poi le cattura e le separa con uno spazio
     }
 
     // 2. Ricava la coppia di chiavi dalle 12 parole
     public KeyPair deriveKeyPairFromMnemonic(String mnemonic) throws Exception {
-        if (signatureAlgorithm == null) throw new Exception("Algoritmo non configurato!");        // Dividiamo la mnemonica in array di parole
-        String[] words = mnemonic.split(" ");
+        if (signatureAlgorithm == null) throw new Exception("Algoritmo non configurato!");
+        String[] words = mnemonic.split(" ");       // Dividiamo la mnemonica in array di parole
         BIP39Mnemonic b39 = BIP39Mnemonics.of(words);
         // Trasformiamo le parole in byte di entropia
         byte[] entropyBytes = b39.getBytes();
@@ -145,19 +133,20 @@ public class MinerService {
         }
     }
 
-    public void saveIDFile(String mnemonic, KeyPair keys, Path destination) throws IOException {
+    // Salva l'identità su file
+    public void saveIDFile(String mnemonic, KeyPair keys, Path destination) throws IOException, java.security.InvalidKeyException {
         JsonObject json = new JsonObject();
 
-        // Salviamo le parole
         json.addProperty("mnemonic", mnemonic);
 
-        // Salviamo le chiavi convertendole in stringa (Base64)
+        // Salviamo le chiavi convertendole in stringa (Base64)                                         TODO: NON VA BENE
+        SignatureAlgorithm algorithm = getSignatureAlgorithm();
         String publicKeyEncoded = Base64.getEncoder().encodeToString(keys.getPublic().getEncoded());
         String privateKeyEncoded = Base64.getEncoder().encodeToString(keys.getPrivate().getEncoded());
 
         json.addProperty("publicKey", publicKeyEncoded);
         json.addProperty("privateKey", privateKeyEncoded);
-        json.addProperty("algorithm", "Ed25519");
+        json.addProperty("algorithm", algorithm.toString());
         json.addProperty("createdAt", java.time.Instant.now().toString());
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -193,21 +182,4 @@ public class MinerService {
     }
 
 }
-
-    /*public KeyPair importKeyFromHex(String privateKeyHex) throws Exception {
-        // 1. Converti la stringa hex in byte[]
-        byte[] keyBytes = Hex.decode(privateKeyHex);
-
-        // 2. Ricostruisci la chiave privata (esempio per algoritmi standard come EdDSA o ECDSA)
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-        KeyFactory kf = KeyFactory.getInstance("Ed25519"); // O l'algoritmo usato da Mokamint
-        PrivateKey privKey = kf.generatePrivate(spec);
-
-        // 3. Deriva la pubblica dalla privata per creare il KeyPair
-        // Spesso Mokamint ha utility interne per farlo, altrimenti serve la specifica
-        PublicKey pubKey = derivePublicKey(privKey);
-
-        return new KeyPair(pubKey, privKey);
-    }
-    */
 

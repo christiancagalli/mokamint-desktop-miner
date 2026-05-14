@@ -2,6 +2,7 @@ package it.univr.mokamintminer.gui;
 
 import it.univr.mokamintminer.utils.MinerPrefsManager;
 import javafx.animation.PauseTransition;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -13,11 +14,11 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 
 public class ConnectionController {
     @FXML private ComboBox<String> uriComboBox;
     @FXML private TextField plotPathField;
-    //@FXML private TextField plotSizeField;                                                         //PLOTSIZE
     @FXML private Label errorLabel;
 
     @FXML
@@ -26,6 +27,18 @@ public class ConnectionController {
         uriComboBox.getItems().addAll(MinerPrefsManager.getVisitedUris());
         if (!uriComboBox.getItems().isEmpty()) {
             uriComboBox.getSelectionModel().selectFirst();
+        }
+    }
+
+    @FXML
+    private void handleRemoveUri() {
+        String selectedUri = uriComboBox.getSelectionModel().getSelectedItem();
+        if (selectedUri != null && !selectedUri.isEmpty()) {
+            // 1. Rimuovi dalle preferenze
+            MinerPrefsManager.removeUri(selectedUri);
+            // 2. Rimuovi dalla ComboBox graficamente
+            uriComboBox.getItems().remove(selectedUri);
+            uriComboBox.getSelectionModel().clearSelection();
         }
     }
 
@@ -60,47 +73,19 @@ public class ConnectionController {
     private void handleConnect() {
         String uri = uriComboBox.getEditor().getText(); // Prende sia scelta che testo libero
         String path = plotPathField.getText();
-        //String size = plotSizeField.getText();                                                //PLOTSIZE
 
-        //Creiamo un Task per non bloccare la GUI
-        Task<String> discoveryTask = new Task<>() {
-            @Override
-            protected String call() throws Exception {
-                // Usiamo il client di Mokamint per interpellare il nodo
-                try (var node = io.mokamint.node.remote.RemotePublicNodes.of(URI.create(uri.replace("ws", "http")), 5000)) {
-                    return node.getConfig().getChainId(); // Se il nodo espone le API
-                }
-            }
-        };
-
-        if (uri.isEmpty() || path.isEmpty() /*|| size.isEmpty()*/) {                            //PLOTSIZE
+        if (uri.isEmpty() || path.isEmpty()) {
             showErrorMessage("Errore: Campi vuoti!");
             return;
         }
 
         // Salva l'URI nella memoria locale
         MinerPrefsManager.saveUri(uri);
-
         System.out.println("Connessione a: " + uri);
-
-        // QUI chiamerai la funzione del prof per interrogare il nodo sull'algoritmo
-        // E poi passerai alla LoginPage
-        switchToLoginScene(uri, path/*, size*/);                                                //PLOTSIZE
+        switchToLoginScene(uri, path);
     }
 
-    @FXML
-    private void handleRemoveUri() {
-        String selectedUri = uriComboBox.getSelectionModel().getSelectedItem();
-        if (selectedUri != null && !selectedUri.isEmpty()) {
-            // 1. Rimuovi dalle preferenze
-            MinerPrefsManager.removeUri(selectedUri);
-            // 2. Rimuovi dalla ComboBox graficamente
-            uriComboBox.getItems().remove(selectedUri);
-            uriComboBox.getSelectionModel().clearSelection();
-        }
-    }
-
-    private void switchToLoginScene(String uri, String path/*, String size*/) {                                         //PLOTSIZE
+    private void switchToLoginScene(String uri, String path) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/login.fxml"));
             Parent root = loader.load();
@@ -109,7 +94,7 @@ public class ConnectionController {
             LoginController loginController = loader.getController();
 
             // 2. Passiamo 'uri del miner (dovrai creare questo metodo nel LoginController)
-            loginController.setConnectionData(uri, path/*, size*/);                                                      //PLOTSIZE
+            loginController.setConnectionData(uri, path);
 
             // 3. Cambiamo effettivamente la scena sul desktop
             Stage stage = (Stage) uriComboBox.getScene().getWindow();

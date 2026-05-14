@@ -38,6 +38,7 @@ public class MiningController {
     public void setMiningData(MinerService service, KeyPair keys) {
         this.minerService = service;
         this.userKeys = keys;
+        System.out.println("chiavi nel mining controller: " + userKeys.getPublic());
 
         // Popoliamo la UI con i dati salvati
         String pubKeyHex = MinerService.bytesToHex(keys.getPublic().getEncoded());
@@ -77,7 +78,6 @@ public class MiningController {
     @FXML
     private void handleCreatePlot() {
         if (plotTask != null && plotTask.isRunning()) return;
-        //int plotSize = minerService.getPlotSize();                                    //PLOTSIZE
 
         String sizeText = localSizeField.getText().trim();
         if (sizeText.isEmpty()) {
@@ -95,12 +95,14 @@ public class MiningController {
             protected Void call() throws Exception {
                 updateMessage("Creazione Plot (" + size + " nonces)...");
 
+                System.out.println("CREAZIONE PLOT CON CHIAVE: " + MinerService.bytesToHex(userKeys.getPublic().getEncoded()));
+
                 // Usiamo il metodo che abbiamo scritto nel MinerService
                 minerService.createPlot(
                         Path.of(minerService.getPlotPath()),
                         userKeys,
                         0L, // startNonce
-                        size, // plotSize (puoi recuperarlo dal service)
+                        size,
                         progress -> updateProgress(progress, 100),
                         message -> log(message)
                 );
@@ -132,15 +134,19 @@ public class MiningController {
     private void onStartMining() {
         log("Avvio sessione di mining...");
 
+        System.out.println("AVVIO MINING CON CHIAVE: " + MinerService.bytesToHex(userKeys.getPublic().getEncoded()));
+
         try {
             // 1. Recuperiamo i dati dal service
             URI uri = URI.create(minerService.getNodeUri());
             Path path = Path.of(minerService.getPlotPath());
+            String chainId = minerService.getChainID();
 
             // 2. Creiamo il miner reale
             // Passiamo un listener che intercetta i log e le deadline
             miner = new DesktopMinerService(
                     uri,
+                    chainId,
                     path,
                     userKeys,
                     new DesktopMinerService.MinerListener() {
@@ -212,89 +218,6 @@ public class MiningController {
         });
     }
 }
-
- /*@FXML
-    private void onStartMining() {
-        log("Identificazione rete in corso...");
-        startMiningButton.setDisable(true);
-        statusLabel.setText("Status: Identificazione...");
-
-        // STEP 1: Creiamo un Task per recuperare il ChainID
-        Task<String> getChainIdTask = new Task<>() {
-            @Override
-            protected String call() throws Exception {
-                URI uri = URI.create(minerService.getNodeUri());
-                // Apriamo una connessione temporanea al nodo per leggere le info
-                try (var node = io.mokamint.node.remote.RemotePublicNodes.of(uri, 5000)) {
-                    return node.getInfo().toString();
-                }
-            }
-        };
-
-        // Cosa fare se il Task ha successo
-        getChainIdTask.setOnSucceeded(e -> {
-            String discoveredChainId = getChainIdTask.getValue();
-            log("Rete identificata: " + discoveredChainId);
-
-            // STEP 2: Facciamo partire il miner vero e proprio con l'ID scoperto
-            runActualMining(discoveredChainId);
-        });
-
-        // Cosa fare se il Task fallisce (es. nodo spento)
-        getChainIdTask.setOnFailed(e -> {
-            Throwable exception = getChainIdTask.getException();
-            log("Errore identificazione: " + exception.getMessage());
-            statusLabel.setText("Status: Errore connessione");
-            startMiningButton.setDisable(false);
-        });
-
-        new Thread(getChainIdTask).start();
-    }
-
-    private void runActualMining(String chainId) {
-        try {
-            miner = new DesktopMinerService(
-                    URI.create(minerService.getNodeUri()),
-                    chainId, // <-- Ora passiamo l'ID dinamico!
-                    Path.of(minerService.getPlotPath()),
-                    userKeys,
-                    new DesktopMinerService.MinerListener() {
-                        @Override
-                        public void onConnected() {
-                            Platform.runLater(() -> {
-                                log("Miner connesso e operativo.");
-                                statusLabel.setText("Status: Mining attivo (" + chainId + ")");
-                                stopMiningButton.setDisable(false);
-                            });
-                        }
-
-                        @Override
-                        public void onDisconnected() {
-                            Platform.runLater(() -> {
-                                log("Connessione persa.");
-                                onStopMining();
-                            });
-                        }
-
-                        @Override
-                        public void onDeadline(int total) {
-                            Platform.runLater(() -> log("Nuova deadline trovata! (Totale: " + total + ")"));
-                        }
-
-                        @Override
-                        public void onMessage(String msg) {
-                            Platform.runLater(() -> log(msg));
-                        }
-                    }
-            );
-        } catch (Exception ex) {
-            log("Errore durante l'avvio del motore: " + ex.getMessage());
-            startMiningButton.setDisable(false);
-        }
-    }*/
-
-
-
 
 
 /*package it.univr.mokamintminer.gui;
