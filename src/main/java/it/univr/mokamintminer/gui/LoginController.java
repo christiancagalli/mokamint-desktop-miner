@@ -1,6 +1,10 @@
 package it.univr.mokamintminer.gui;
 
+import io.hotmoka.crypto.BIP39Mnemonics;
+import io.hotmoka.crypto.api.Entropy;
+import io.hotmoka.crypto.Entropies;
 import io.hotmoka.crypto.api.BIP39Mnemonic;
+import io.mokamint.miner.api.MiningSpecification;
 import io.mokamint.miner.service.MinerServices;
 import io.mokamint.node.remote.api.RemoteNode;
 import it.univr.mokamintminer.services.MinerService;
@@ -22,15 +26,16 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.KeyPair;
 
 public class LoginController {
 
     @FXML
     private VBox manualInputBox;
-    @FXML private VBox loadJsonBox;
-    @FXML private TextField jsonPathField;
-    @FXML private Button loginJsonButton;
+    @FXML private VBox loadPemBox;
+    @FXML private TextField pemPathField;
+    @FXML private Button loginPemButton;
 
 
     @FXML
@@ -38,6 +43,7 @@ public class LoginController {
 
     private final MinerService minerService = new MinerService();
     private KeyPair loggedKeyPair;
+    private MiningSpecification miningSpecification;
 
     @FXML
     private void initialize() {
@@ -47,18 +53,21 @@ public class LoginController {
     //BOTTONE PER GENERARE IDENTITÀ NEL CASO NON SI POSSEDESSE
     @FXML
     private void handleGenerateNew() {
+        if (miningSpecification == null) {
+            showError("Specifiche del server non caricate. Impossibile generare le chiavi.");
+            return;
+        }
 
         manualInputBox.setVisible(false);
         manualInputBox.setManaged(false);
-        loadJsonBox.setVisible(false);
-        loadJsonBox.setManaged(false);
-
-
+        loadPemBox.setVisible(false);
+        loadPemBox.setManaged(false);
 
         // Configura il salvataggio file
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Salva la tua Identità (.json)");
-        fileChooser.setInitialFileName("mokamint_identity.json");
+        fileChooser.setTitle("Salva la tua Identità (.pem)");
+        fileChooser.setInitialFileName("mokamint_identity.pem");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PEM Files", "*.pem"));
 
         //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
         String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
@@ -71,15 +80,23 @@ public class LoginController {
             try {
                 // Genera le chiavi e salva
                 String newMnemonic = minerService.generateNewMnemonic();
+                String[] words = newMnemonic.split("[,\\s]+");
 
-                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(newMnemonic);
-                minerService.saveIDFile(newMnemonic, this.loggedKeyPair, Path.of(file.getAbsolutePath()));
+                var b39 = io.hotmoka.crypto.BIP39Mnemonics.of(words);
+                byte[] entropyBytes = b39.getBytes();
+                io.hotmoka.crypto.api.Entropy entropy = io.hotmoka.crypto.Entropies.of(entropyBytes);
+
+                var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
+                this.loggedKeyPair = entropy.keys("", signatureForDeadlines);
+
+                // Dump nativo in formato PEM
+                entropy.dump(Paths.get(file.getAbsolutePath()));
 
                 // Mostra il pop-up informativo (mostra le parole)
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
                 alert.setTitle("Identità Creata");
                 alert.setHeaderText("Salvataggio completato!");
-                alert.setContentText("Il file JSON è pronto. \n\nPAROLE DI RECUPERO (Scrivile ora!):\n" + newMnemonic);
+                alert.setContentText("Il file PEM è pronto. \n\nPAROLE DI RECUPERO (Scrivile ora!):\n" + newMnemonic);
 
                 alert.showAndWait();    // attendo che l'utente prema ok sul pop-up
 
@@ -94,38 +111,50 @@ public class LoginController {
 
     // BOTTONE PER IL CARICAMENTO FILE
     @FXML
-    private void handleLoadJson() {
+    private void handleLoadPem() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Seleziona il tuo file Identità");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PEM Files", "*.pem"));
 
         //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
         String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
         File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
         fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
 
-        File selectedFile = fileChooser.showOpenDialog(jsonPathField.getScene().getWindow());
+        File selectedFile = fileChooser.showOpenDialog(pemPathField.getScene().getWindow());
 
         if (selectedFile != null) {
-            jsonPathField.setText(selectedFile.getAbsolutePath());
+            pemPathField.setText(selectedFile.getAbsolutePath());
 
             // MOSTRA IL TASTO ACCEDI
-            loginJsonButton.setVisible(true);
-            loginJsonButton.setManaged(true);
+            loginPemButton.setVisible(true);
+            loginPemButton.setManaged(true);
         }
     }
 
     //BOTTONE DI LOGIN DOPO AVER CARICATO IL FILE
     @FXML
-    private void handleFinalJsonLogin() {
-        String path = jsonPathField.getText();
+    private void handleFinalPemLogin() {
+        String path = pemPathField.getText();
         if (!path.isEmpty()) {
             try {
-                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(minerService.loadMnemonicFromFile(Path.of(path)));
+                /*this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(minerService.loadMnemonicFromFile(Path.of(path)));
                 System.out.println("Login da file JSON completato! chiavi: " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
             } catch (Exception e) {
                 showError("File JSON non valido.");
+            }*/
+                var entropy = Entropies.load(Paths.get(path));
+
+                // Ricaviamo la coppia di chiavi usando l'algoritmo dinamico del server
+                var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
+                this.loggedKeyPair = entropy.keys("", signatureForDeadlines);
+
+                System.out.println("Login da file PEM completato con successo! chiavi: " + loggedKeyPair.getPublic());
+                switchToMiningScene(this.loggedKeyPair);
+            } catch (Exception e) {
+                e.printStackTrace();
+                showError("File PEM non valido o non compatibile con le specifiche del server.");
             }
         }
     }
@@ -137,12 +166,18 @@ public class LoginController {
         String mnemonic = mnemonicTextArea.getText().trim();
         if (minerService.isValidMnemonic(mnemonic)) {
             try {
-                this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(mnemonic);
-                System.out.println("Login effettuato con successo! chiavi : " + loggedKeyPair.getPublic());
+                String[] words = mnemonic.split("[,\\s]+");
+                var b39 = io.hotmoka.crypto.BIP39Mnemonics.of(words);
+                byte[] entropyBytes = b39.getBytes();
+                io.hotmoka.crypto.api.Entropy entropy = io.hotmoka.crypto.Entropies.of(entropyBytes);
+
+                var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
+                this.loggedKeyPair = entropy.keys("", signatureForDeadlines);
+
+                System.out.println("Login effettuato con successo! chiavi: " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
-                // Qui aggiungeremo il cambio scena verso la pagina di mining
             } catch (Exception e) {
-                e.printStackTrace();
+                showError("Errore nella derivazione crittografica: " + e.getMessage());
             }
         } else {
             System.out.println("Mnemonica non valida!");
@@ -152,8 +187,8 @@ public class LoginController {
     //RENDERE VISIBILE LA TEXTAREA
     @FXML
     private void toggleManualInput() {
-        loadJsonBox.setVisible(false);
-        loadJsonBox.setManaged(false);
+        loadPemBox.setVisible(false);
+        loadPemBox.setManaged(false);
         boolean isVisible = manualInputBox.isVisible();
         manualInputBox.setVisible(!isVisible);
         manualInputBox.setManaged(!isVisible);
@@ -163,17 +198,18 @@ public class LoginController {
         fade.setToValue(1.0);
         fade.play();
     }
+
     //RENDERE VISIBILE IL FILE CHOOSER
     @FXML
     private void handleShowLoadArea() {
         manualInputBox.setVisible(false);
         manualInputBox.setManaged(false);
-        boolean isVisible = loadJsonBox.isVisible();
-        loadJsonBox.setVisible(!isVisible);
-        loadJsonBox.setManaged(!isVisible);
-        loadJsonBox.setOpacity(0); // Parte da invisibile
+        boolean isVisible = loadPemBox.isVisible();
+        loadPemBox.setVisible(!isVisible);
+        loadPemBox.setManaged(!isVisible);
+        loadPemBox.setOpacity(0); // Parte da invisibile
 
-        FadeTransition fade = new FadeTransition(Duration.millis(500), loadJsonBox);
+        FadeTransition fade = new FadeTransition(Duration.millis(500), loadPemBox);
         fade.setFromValue(0.0);
         fade.setToValue(1.0);
         fade.play();
@@ -185,14 +221,12 @@ public class LoginController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/mining.fxml"));
             Parent root = loader.load();
 
-            // 1. Otteniamo il controller della pagina di mining
+            // Otteniamo il controller della pagina di mining
             MiningController miningController = loader.getController();
 
-            // 2. Passiamo TUTTI i dati necessari (Service + Chiavi)
-            // Usiamo il nuovo metodo che abbiamo creato nel MiningController
-            miningController.setMiningData(this.minerService, keys);
+            miningController.setMiningData(this.minerService, keys, this.miningSpecification);
 
-            // 3. Cambiamo effettivamente la scena sul desktop
+            // cambio scena
             Stage stage = (Stage) mnemonicTextArea.getScene().getWindow();
             stage.setScene(new Scene(root));
             stage.setTitle("Mokamint Desktop Miner - Dashboard");
@@ -212,26 +246,21 @@ public class LoginController {
         alert.showAndWait();
     }
 
-    public void setConnectionData(String uri, String path) {
-        System.out.println("Dati ricevuti: "+ uri);
+    public void setConnectionData(String uri, String path, MiningSpecification specification) {
+        System.out.println("Dati ricevuti: "+ uri + path);
+        this.miningSpecification = specification;
+
         try{
-            URI nodeUri = new URI(uri);
-            var libMinerService = MinerServices.of(nodeUri, 5000);
-            String chainID = libMinerService.getMiningSpecification().getChainId(); // Otteniamo il chainID
+            String chainID = specification.getChainId();
+            var signatureAlg = specification.getSignatureForBlocks();
 
-            // 3. Otteniamo la specifica (che contiene l'algoritmo)
-            var miningSpecification = libMinerService.getMiningSpecification();
-
-            // 4. Estraiamo l'algoritmo di firma
-            var signatureAlg = miningSpecification.getSignatureForBlocks();
-
-            // 5. Configura il TUO servizio locale per la tesi
+            // Configura il tuo servizio helper interno
             this.minerService.configure(uri, path, signatureAlg, chainID);
 
-            System.out.println("Specifiche caricate! Algoritmo: " + signatureAlg.getName());
-        }catch (Exception e) {
+            System.out.println("Specifiche caricate nel LoginController! Algoritmo del server: " + signatureAlg.getName());
+        } catch (Exception e) {
             e.printStackTrace();
-            showError("Errore di connessione: " + e.getMessage());
+            showError("Errore nella configurazione delle specifiche: " + e.getMessage());
         }
 
     }

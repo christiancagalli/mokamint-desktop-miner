@@ -1,5 +1,9 @@
 package it.univr.mokamintminer.gui;
 
+import io.mokamint.miner.api.MiningSpecification;
+import io.mokamint.nonce.Prologs;
+import io.mokamint.nonce.api.Prolog;
+import io.mokamint.plotter.Plots;
 import it.univr.mokamintminer.core.DesktopMinerService;
 import it.univr.mokamintminer.services.MinerService;
 import javafx.application.Platform;
@@ -12,6 +16,8 @@ import javafx.scene.layout.VBox;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 
 public class MiningController {
@@ -31,24 +37,33 @@ public class MiningController {
     private MinerService minerService;
     private KeyPair userKeys;
     private Task<Void> plotTask;
+    private MiningSpecification miningSpecification;
 
     /**
      * Riceve i dati dai controller precedenti.
      */
-    public void setMiningData(MinerService service, KeyPair keys) {
+    public void setMiningData(MinerService service, KeyPair keys, MiningSpecification specification) {
         this.minerService = service;
         this.userKeys = keys;
+        this.miningSpecification = specification;
         System.out.println("chiavi nel mining controller: " + userKeys.getPublic());
 
-        // Popoliamo la UI con i dati salvati
-        String pubKeyHex = MinerService.bytesToHex(keys.getPublic().getEncoded());
-        pubKeyLabel.setText(pubKeyHex.substring(0, 20) + "...");
+        try {
+            byte[] rawPubBytes = keys.getPublic().getEncoded();
+            String pubKeyHex = MinerService.bytesToHex(rawPubBytes);
+
+            pubKeyLabel.setText(pubKeyHex.substring(0, 20) + "...");
+
+        } catch (Exception e) {
+            pubKeyLabel.setText("Errore lettura chiave");
+            System.err.println("Errore nel popolamento della label: " + e.getMessage());
+        }
         plotPathLabel.setText(minerService.getPlotPath());
 
         startMiningButton.setDisable(false); // Acceso (se il plot esiste)
         stopMiningButton.setDisable(true);
         updateButtonsState();
-        log("Dati caricati. Pronto per il mining.");
+        log("Dati e specifiche caricati dal server. Pronto per il mining.");
     }
 
     private void updateButtonsState() {
@@ -76,8 +91,13 @@ public class MiningController {
      * Gestisce la creazione del file di Plot.
      */
     @FXML
-    private void handleCreatePlot() {
+    private void handleCreatePlot(){
         if (plotTask != null && plotTask.isRunning()) return;
+
+        if (miningSpecification == null) {
+            log("Errore: Specifiche del server mancanti!");
+            return;
+        }
 
         String sizeText = localSizeField.getText().trim();
         if (sizeText.isEmpty()) {
@@ -85,7 +105,7 @@ public class MiningController {
             return;
         }
 
-        int size = Integer.parseInt(sizeText);
+        long size = Long.parseLong(sizeText);
 
         btnCreatePlot.setDisable(true);
         startMiningButton.setDisable(true);
@@ -95,21 +115,44 @@ public class MiningController {
             protected Void call() throws Exception {
                 updateMessage("Creazione Plot (" + size + " nonces)...");
 
-                System.out.println("CREAZIONE PLOT CON CHIAVE: " + MinerService.bytesToHex(userKeys.getPublic().getEncoded()));
+                // Spacchetto le info dalla specifica,
+                String chainId = miningSpecification.getChainId();
+                var signatureForBlocks = miningSpecification.getSignatureForBlocks();
+                var publicKeyOfServer = miningSpecification.getPublicKeyForSigningBlocks();
+                var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
+                var hashingForDeadlines = miningSpecification.getHashingForDeadlines();
 
-                // Usiamo il metodo che abbiamo scritto nel MinerService
-                minerService.createPlot(
-                        Path.of(minerService.getPlotPath()),
-                        userKeys,
+                // Costruisco il Prolog
+                Prolog prolog = Prologs.of(
+                        chainId,
+                        signatureForBlocks,
+                        publicKeyOfServer,
+                        signatureForDeadlines,
+                        userKeys.getPublic(), // La chiave pubblica del miner
+                        new byte[0] // I metadati extra vuoti
+                );
+
+                Path path = Paths.get(minerService.getPlotPath());
+
+                // creiamo il plot file
+                Plots.create(
+                        path,
+                        prolog,
                         0L, // startNonce
                         size,
-                        progress -> updateProgress(progress, 100),
-                        message -> log(message)
+                        hashingForDeadlines,
+                        progress -> {
+                            // Supponendo che 'progress' sia un valore o un indice,
+                            // puoi calcolare la percentuale per aggiornare la barra:
+                            //updateProgress(progress, size);
+                        }
                 );
+
                 return null;
             }
         };
 
+        System.out.println("AVVIO PLOTTING UFFICIALE CON LA CHIAVE: " + MinerService.bytesToHex(this.userKeys.getPublic().getEncoded()));
         // Colleghiamo la barra di progresso e i messaggi
         progressBar.progressProperty().bind(plotTask.progressProperty());
         statusLabel.textProperty().bind(plotTask.messageProperty());
@@ -123,8 +166,10 @@ public class MiningController {
 
         plotTask.setOnFailed(e -> {
             unbindUI();
+            Throwable ex = plotTask.getException();
             log("Errore durante il plotting: " + plotTask.getException().getMessage());
             statusLabel.setText("Status: Errore creazione.");
+            ex.printStackTrace();
         });
 
         new Thread(plotTask).start();
@@ -133,8 +178,7 @@ public class MiningController {
     @FXML
     private void onStartMining() {
         log("Avvio sessione di mining...");
-
-        System.out.println("AVVIO MINING CON CHIAVE: " + MinerService.bytesToHex(userKeys.getPublic().getEncoded()));
+        System.out.println("AVVIO MINING CON CHIAVE REALE: " + MinerService.bytesToHex(this.userKeys.getPublic().getEncoded()));
 
         try {
             // 1. Recuperiamo i dati dal service

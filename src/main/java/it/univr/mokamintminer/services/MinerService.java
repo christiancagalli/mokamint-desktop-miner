@@ -69,15 +69,23 @@ public class MinerService {
                            Consumer<String> logger) throws Exception {
 
         // Algoritmo di hashing
-        HashingAlgorithm hashing = HashingAlgorithms.shabal256();
+        HashingAlgorithm hashing = HashingAlgorithms.shabal256();       //solo questo
+
+        byte[] rawPubBytes = signatureAlgorithm.encodingOf(myKeys.getPublic());
+        System.out.println("[DIAGNOSTICA PLOT] Chiave passata al plotter (HEX): " + bytesToHex(rawPubBytes));
+
+// 2. Ricostruisci un oggetto PublicKey che NON ha l'header Java, usando i byte puri
+        java.security.PublicKey cleanPublicKey = signatureAlgorithm.publicKeyFromEncoding(rawPubBytes);
+        System.out.println("CREAZIONE PLOT - Forzatura 32 byte completata.");
+        System.out.println("Chiave reale scritta nel plot (HEX): " + bytesToHex(rawPubBytes));
 
         // Creazione prolog
         Prolog prolog = Prologs.of(
                 this.chainID,
                 signatureAlgorithm,
-                myKeys.getPublic(), // Chiave per i blocchi
+                cleanPublicKey, // Chiave per i blocchi //myKeys.getPublic()
                 signatureAlgorithm,
-                myKeys.getPublic(), // Chiave per le transazioni
+                cleanPublicKey, // Chiave per le transazioni
                 new byte[0]
         );
 

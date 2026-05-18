@@ -33,15 +33,15 @@
             <Button text="Carica Identità da File" onAction="#handleShowLoadArea"
                     maxWidth="Infinity" styleClass="button-secondary"/>
 
-            <VBox fx:id="loadJsonBox" spacing="10" visible="false" managed="false">
+            <VBox fx:id="loadPemBox" spacing="10" visible="false" managed="false">
                 <HBox spacing="10" alignment="CENTER">
-                    <TextField fx:id="jsonPathField" promptText="Percorso file .json"
+                    <TextField fx:id="pemPathField" promptText="Percorso file .pem"
                                editable="false" HBox.hgrow="ALWAYS"/>
-                    <Button text="Sfoglia..." onAction="#handleLoadJson"/>
+                    <Button text="Sfoglia..." onAction="#handleLoadPem"/>
                 </HBox>
 
-                <Button fx:id="loginJsonButton" text="Accedi all'Identità"
-                        onAction="#handleFinalJsonLogin" visible="false" managed="false"
+                <Button fx:id="loginPemButton" text="Accedi all'Identità"
+                        onAction="#handleFinalPemLogin" visible="false" managed="false"
                         maxWidth="Infinity" styleClass="button-primary"/>
             </VBox>
         </VBox>

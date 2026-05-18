@@ -11,6 +11,8 @@ import java.security.KeyPair;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static it.univr.mokamintminer.services.MinerService.bytesToHex;
+
 public class DesktopMinerService extends AbstractReconnectingMinerService {
 
     private final MinerListener listener;
@@ -29,16 +31,16 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
                         LocalMiners.of(
                                 chainId,
                                 "Miner GUI",
-
-                                /*(signature, publicKey) -> {
+                                (signature, publicKey) -> {
                                     try {
-                                        byte[] rawPriv = io.hotmoka.crypto.SignatureAlgorithms.ed25519().encodingOf(keys.getPrivate());
+                                        byte[] rawPriv = keys.getPrivate().getEncoded();
+
                                         return Optional.of(new java.math.BigInteger(1, rawPriv));
                                     } catch (Exception e) {
+                                        System.out.println("[DesktopMiner] Errore estrazione chiave privata: " + e.getMessage());
                                         return Optional.empty();
                                     }
-                                },*/
-                                (signature, publicKey) -> Optional.of(new java.math.BigInteger(1, keys.getPrivate().getEncoded())),
+                                },
                                 Plots.load(plotPath)
                         )
                 ),
