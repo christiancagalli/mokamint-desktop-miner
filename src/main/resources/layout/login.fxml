@@ -9,7 +9,6 @@
       fx:controller="it.univr.mokamintminer.gui.LoginController"
       spacing="20" alignment="CENTER" prefWidth="700" prefHeight="500" styleClass="main-container">
 
-
     <stylesheets>
         <URL value="@style.css" />
     </stylesheets>
@@ -19,16 +18,15 @@
     </padding>
 
     <Label text="Mokamint Desktop Miner" styleClass="title-label"/>
-    <Label text="Benvenuto, seleziona la tua identità per iniziare" styleClass="subtitle-label"/>
+    <Label text="Benvenuto, seleziona la tua identità per iniziare" styleClass="label-standard"/>
 
     <Separator/>
+
     <VBox spacing="20" alignment="CENTER" styleClass="login-options-container">
 
-        <!--BOTTONE GENERA UNA NUOVA IDENTITÀ-->
         <Button text="Genera Nuova Identità" onAction="#handleGenerateNew"
                 maxWidth="Infinity" styleClass="button-secondary"/>
 
-        <!--BOTTONE CARICA IDENTITÀ DA FILE-->
         <VBox spacing="10" alignment="CENTER">
             <Button text="Carica Identità da File" onAction="#handleShowLoadArea"
                     maxWidth="Infinity" styleClass="button-secondary"/>
@@ -37,7 +35,7 @@
                 <HBox spacing="10" alignment="CENTER">
                     <TextField fx:id="pemPathField" promptText="Percorso file .pem"
                                editable="false" HBox.hgrow="ALWAYS"/>
-                    <Button text="Sfoglia..." onAction="#handleLoadPem"/>
+                    <Button text="Sfoglia..." onAction="#handleLoadPem" styleClass="button-secondary"/>
                 </HBox>
 
                 <Button fx:id="loginPemButton" text="Accedi all'Identità"
@@ -48,47 +46,17 @@
 
     </VBox>
 
-    <!--BOTTONE CARICA IDENTITÀ CON LA MNEMONICA-->
     <VBox spacing="10" alignment="CENTER">
         <Button text="Ho già un' Identità" onAction="#toggleManualInput"
                 maxWidth="Infinity" styleClass="button-secondary"/>
 
         <VBox fx:id="manualInputBox" visible="false" managed="false" spacing="10">
-            <Label text="Inserisci le tue 12 parole (Mnemonica):" styleClass="label-small"/>
+            <Label text="Inserisci le tue 12 parole (Mnemonica):" styleClass="label-standard"/>
             <TextArea fx:id="mnemonicTextArea" prefHeight="80" wrapText="true"
-                      promptText="es: apple banana cherry..."/>
+                      promptText="es: apple banana cherry..." styleClass="text-area-mnemonic"/>
 
             <Button text="Accedi con Mnemonica" onAction="#handleManualLogin"
                     maxWidth="Infinity" styleClass="button-primary"/>
         </VBox>
     </VBox>
-
-
 </VBox>
-
-
-<!--<VBox spacing="10" alignment="CENTER">
-        <Button text="Ho già un'identità" onAction="#toggleManualInput"
-                maxWidth="Infinity" styleClass="button-secondary"/>
-
-        <VBox fx:id="manualInputBox" visible="false" managed="false" spacing="15"
-              style="-fx-padding: 10; -fx-background-color: #f4f4f4; -fx-background-radius: 5;">
-
-            <VBox spacing="5">
-                <Label text="Le tue 12 parole:" style="-fx-font-size: 11px; -fx-text-fill: #666;"/>
-                <TextArea fx:id="mnemonicTextArea" prefHeight="60" wrapText="true"
-                          promptText="apple banana cherry..." styleClass="text-area-mnemonic"/>
-            </VBox>
-
-            <Separator />
-
-            <VBox spacing="5">
-                <Label text="Accesso Avanzato (Chiavi Hex):" style="-fx-font-size: 11px; -fx-text-fill: #aaa;"/>
-                <PasswordField fx:id="privateKeyField" promptText="Incolla qui la Chiave Privata..."/>
-                <TextField fx:id="publicKeyField" promptText="Incolla qui la Chiave Pubblica..."/>
-            </VBox>
-
-            <Button text="Verifica e Accedi" onAction="#handleCombinedLogin"
-                    maxWidth="Infinity" styleClass="button-primary"/>
-        </VBox>
-    </VBox>-->

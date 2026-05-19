@@ -81,7 +81,7 @@ public class ConnectionController {
             return;
         }
 
-        errorLabel.setText("Connessione a " + uri + "in corso e recupero specifiche...");
+        errorLabel.setText("Connessione a " + uri + "in corso ...");
         errorLabel.setVisible(true);
 
         // Creiamo un Task in background per non bloccare la GUI durante la connessione di rete
@@ -118,11 +118,6 @@ public class ConnectionController {
 
         // Avviamo il thread in background
         new Thread(connectionTask).start();
-
-        /*// Salva l'URI nella memoria locale
-        MinerPrefsManager.saveUri(uri);
-        System.out.println("Connessione a: " + uri);
-        switchToLoginScene(uri, path);*/
     }
 
     private void switchToLoginScene(String uri, String path, MiningSpecification specification) {

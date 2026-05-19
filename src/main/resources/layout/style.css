@@ -1,30 +1,234 @@
+/* ==========================================================================
+   1. STRUTTURA E CONTENITORI (Palette schiarita per maggiore luminosità)
+   ========================================================================== */
+
+/* Lo sfondo generale passa da un cupo #1e1e24 a un grigio piombo morbido */
 .main-container {
-    -fx-background-color: #f5f5f5;
+    -fx-background-color: #2f3136;
 }
+
+/* Linea di divisione (Separator) riadattata allo sfondo più chiaro */
+.separator .line {
+    -fx-border-color: #4f545c;
+    -fx-border-width: 1px;
+}
+
+/* Box superiore contenente i dettagli del minatore e della rete */
+.info-box {
+    -fx-background-color: #232428; /* Stesso colore morbido dei log per coerenza */
+    -fx-padding: 15px;
+    -fx-background-radius: 6px;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+}
+
+
+/* ==========================================================================
+   2. TESTI ED ETICHETTE (Migliorato il contrasto)
+   ========================================================================== */
 
 .title-label {
     -fx-font-size: 26px;
     -fx-font-weight: bold;
-    -fx-text-fill: #212121;
+    -fx-text-fill: #ffffff;
 }
 
+.label-standard {
+    -fx-text-fill: #dcddde !important;
+    -fx-font-size: 13px;
+}
+
+
+/* ==========================================================================
+   3. CAMPI DI INPUT (TextField, ComboBox e Mnemonic)
+   ========================================================================= */
+
+/* Campo di testo standard (Utilizzato nella pagina di connessione) */
+.text-field {
+    -fx-background-color: #36393f;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 5px;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 5px;
+    -fx-padding: 10px 12px;
+    -fx-min-height: 42px;
+}
+.text-field:focused {
+    -fx-border-color: #9c64ed;
+}
+
+/* NUOVO: Input compatto specifico per i Nonces nella riga comandi inline */
+.text-field-compact {
+    -fx-background-color: #1e1f22;
+    -fx-text-fill: #ffffff;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 4px;
+    -fx-padding: 3px 8px;
+    -fx-min-height: 28px;
+    -fx-max-height: 28px;
+    -fx-font-size: 13px;
+    -fx-font-family: "Consolas", monospace;
+    -fx-alignment: center;
+}
+.text-field-compact:focused {
+    -fx-border-color: #9c64ed;
+}
+
+/* La ComboBox (Tendina) - Ingrandita e resa più corposa */
+.combo-box {
+    -fx-background-color: #36393f;
+    -fx-background-radius: 5px;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 5px;
+    -fx-padding: 0px;
+    -fx-min-height: 42px;
+    -fx-cursor: hand;
+}
+
+.combo-box:focused {
+    -fx-background-color: #36393f;
+    -fx-border-color: #686d73;
+    -fx-focused-visible: false;
+    -fx-background-insets: 0;
+}
+
+.combo-box .text-input {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+    -fx-padding: 10px 0px 10px 12px;
+    -fx-background-color: transparent;
+}
+
+/* Pulsante della freccia */
+.combo-box > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0 12px 0 10;
+    -fx-min-width: 25px;
+    -fx-cursor: hand;
+}
+
+/* La freccia */
+.combo-box > .arrow-button > .arrow {
+    -fx-background-color: #dcddde;
+    -fx-padding: 5px 6px;
+}
+
+.combo-box:hover > .arrow-button > .arrow {
+    -fx-background-color: #9c64ed;
+}
+
+.combo-box:showing > .arrow-button > .arrow {
+    -fx-background-color: #9c64ed;
+}
+
+/* Menu a tendina aperto */
+.combo-box-popup .list-view {
+    -fx-background-color: #36393f;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}
+
+.combo-box-popup .list-cell {
+    -fx-text-fill: #ffffff;
+    -fx-background-color: transparent;
+    -fx-padding: 8px 12px;
+    -fx-font-size: 14px;
+}
+
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: #40444b;
+    -fx-cursor: hand;
+}
+
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: #9c64ed;
+    -fx-text-fill: #ffffff;
+}
+
+/* Area Mnemonic (Casella di testo nel login) */
+.text-area-mnemonic {
+    -fx-font-family: "Monospaced", monospace;
+    -fx-control-inner-background: #36393f !important;
+    -fx-text-fill: #ffffff !important;
+    -fx-border-color: #4f545c;
+}
+.text-area-mnemonic .content {
+    -fx-background-color: #36393f !important;
+}
+
+
+/* ==========================================================================
+   4. INTERFACCIA DI MINING (Console dei Log e ProgressBar)
+   ========================================================================== */
+
+/* La console stacca nettamente dallo sfondo */
+.text-area {
+    -fx-control-inner-background: #2a2b2f;
+    -fx-text-fill: #e1d5f5;
+    -fx-font-family: "Consolas", "Monospaced", monospace;
+    -fx-font-size: 12px;
+}
+
+.text-area .content {
+    -fx-background-color: #2a2b2f;
+}
+
+.progress-bar .track {
+    -fx-background-color: #36393f;
+    -fx-background-radius: 8px;
+}
+
+.progress-bar .bar {
+    -fx-background-color: linear-gradient(to right, #9c64ed, #b992f3);
+    -fx-background-radius: 8px;
+}
+
+
+/* ==========================================================================
+   5. PULSANTI
+   ========================================================================== */
+
+/* Pulsante Primario Lilla */
 .button-primary {
     -fx-background-color: #9c64ed;
-    -fx-text-fill: white;
+    -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
     -fx-background-radius: 8px;
     -fx-padding: 10 20;
+    -fx-cursor: hand;
+}
+.button-primary:hover {
+    -fx-background-color: #834fe3;
 }
 
+/* Pulsante Secondario / Sfoglia / Genera Plot */
 .button-secondary {
-    -fx-background-color: white;
-    -fx-text-fill: #9c64ed;
+    -fx-background-color: #40444b;
+    -fx-text-fill: #ffffff;
     -fx-border-color: #9c64ed;
     -fx-border-radius: 8px;
     -fx-background-radius: 8px;
+    -fx-padding: 10 20;
+    -fx-cursor: hand;
+}
+.button-secondary:hover {
+    -fx-background-color: #4f545c;
 }
 
-.text-area-mnemonic {
-    -fx-font-family: "Monospaced";
-    -fx-border-color: #e0e0e0;
+/* Pulsante specifico per la "✕" rossa di cancellazione */
+.button-delete {
+    -fx-background-color: #40444b;
+    -fx-text-fill: #ff4444;
+    -fx-border-color: #ff4444;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+.button-delete:hover {
+    -fx-background-color: #ff4444;
+    -fx-text-fill: #ffffff;
 }

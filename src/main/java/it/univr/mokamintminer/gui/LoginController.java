@@ -1,12 +1,7 @@
 package it.univr.mokamintminer.gui;
 
-import io.hotmoka.crypto.BIP39Mnemonics;
-import io.hotmoka.crypto.api.Entropy;
 import io.hotmoka.crypto.Entropies;
-import io.hotmoka.crypto.api.BIP39Mnemonic;
 import io.mokamint.miner.api.MiningSpecification;
-import io.mokamint.miner.service.MinerServices;
-import io.mokamint.node.remote.api.RemoteNode;
 import it.univr.mokamintminer.services.MinerService;
 import javafx.animation.FadeTransition;
 import javafx.fxml.FXML;
@@ -24,8 +19,6 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyPair;
 

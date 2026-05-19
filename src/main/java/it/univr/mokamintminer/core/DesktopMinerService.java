@@ -11,8 +11,6 @@ import java.security.KeyPair;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static it.univr.mokamintminer.services.MinerService.bytesToHex;
-
 public class DesktopMinerService extends AbstractReconnectingMinerService {
 
     private final MinerListener listener;

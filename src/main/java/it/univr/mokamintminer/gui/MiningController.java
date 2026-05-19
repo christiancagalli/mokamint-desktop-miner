@@ -11,13 +11,11 @@ import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
 
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 
 public class MiningController {
@@ -30,8 +28,11 @@ public class MiningController {
     @FXML private Button btnCreatePlot;
     @FXML private Button startMiningButton;
     @FXML private Button stopMiningButton;
-    @FXML private VBox sizeInputBox;
+    @FXML private HBox sizeInputBox;
     @FXML private TextField localSizeField;
+    @FXML private Label nodeUrlLabel;
+    @FXML private Label chainIdLabel;
+    @FXML private Label plotSizeLabel;
 
     private DesktopMinerService miner;
     private MinerService minerService;
@@ -52,13 +53,26 @@ public class MiningController {
             byte[] rawPubBytes = keys.getPublic().getEncoded();
             String pubKeyHex = MinerService.bytesToHex(rawPubBytes);
 
-            pubKeyLabel.setText(pubKeyHex.substring(0, 20) + "...");
+            if (pubKeyHex.length() > 100) {
+                pubKeyLabel.setText(pubKeyHex.substring(pubKeyHex.length() - 25) + "...");
+            } else {
+                pubKeyLabel.setText(pubKeyHex);
+            }
 
         } catch (Exception e) {
             pubKeyLabel.setText("Errore lettura chiave");
             System.err.println("Errore nel popolamento della label: " + e.getMessage());
         }
         plotPathLabel.setText(minerService.getPlotPath());
+        nodeUrlLabel.setText(minerService.getNodeUri());
+        // Se la specifica del server è presente estrariamo la Chain ID
+        if (miningSpecification != null) {
+            chainIdLabel.setText(miningSpecification.getChainId());
+        } else {
+            chainIdLabel.setText("N/A");
+        }
+
+        updatePlotSizeInfo();
 
         startMiningButton.setDisable(false); // Acceso (se il plot esiste)
         stopMiningButton.setDisable(true);
@@ -114,6 +128,13 @@ public class MiningController {
             @Override
             protected Void call() throws Exception {
                 updateMessage("Creazione Plot (" + size + " nonces)...");
+                long sizeInMB = (size * 262144) / (1024 * 1024);
+
+                // 2. Mandiamo i log alla UI in modo sicuro (tramite Platform.runLater)
+                javafx.application.Platform.runLater(() -> {
+                    logArea.appendText("[PLOT] Avvio creazione plot deterministico...\n");
+                    logArea.appendText("[PLOT] Dimensione stimata: " + sizeInMB + " MB\n");
+                });
 
                 // Spacchetto le info dalla specifica,
                 String chainId = miningSpecification.getChainId();
@@ -142,11 +163,13 @@ public class MiningController {
                         size,
                         hashingForDeadlines,
                         progress -> {
-                            // Supponendo che 'progress' sia un valore o un indice,
-                            // puoi calcolare la percentuale per aggiornare la barra:
-                            //updateProgress(progress, size);
+                            updateProgress(progress, 100);
+                            updateMessage("In corso: " + progress + "%");
                         }
                 );
+                    javafx.application.Platform.runLater(() ->
+                            logArea.appendText("[PLOT] File creato con successo!\n")
+                    );
 
                 return null;
             }
@@ -161,6 +184,7 @@ public class MiningController {
             unbindUI();
             log("Plot completato con successo! " + size + " nonces creati.");
             statusLabel.setText("Status: Plot pronto.");
+            updatePlotSizeInfo();
             updateButtonsState();
         });
 
@@ -185,6 +209,9 @@ public class MiningController {
             URI uri = URI.create(minerService.getNodeUri());
             Path path = Path.of(minerService.getPlotPath());
             String chainId = minerService.getChainID();
+
+            progressBar.setProgress(-1.0);
+            statusLabel.setText("Mining in corso... in ascolto di sfide");
 
             // 2. Creiamo il miner reale
             // Passiamo un listener che intercetta i log e le deadline
@@ -246,6 +273,7 @@ public class MiningController {
         startMiningButton.setDisable(false);
         stopMiningButton.setDisable(true);
         log("Mining fermato.");
+        progressBar.setProgress(0.0);
         statusLabel.setText("Status: Pronto");
     }
 
@@ -260,6 +288,33 @@ public class MiningController {
         Platform.runLater(() -> {
             logArea.appendText("[" + java.time.LocalTime.now().withNano(0) + "] " + message + "\n");
         });
+    }
+
+    private void updatePlotSizeInfo() {
+        try {
+            File plotFile = new File(minerService.getPlotPath());
+            if (plotFile.exists()) {
+                long fileBytes = plotFile.length();
+
+                // Calcola i Nonces (1 nonce = 262144 bytes)
+                long nonces = fileBytes / 262144;
+
+                // Calcola i MB/GB
+                double fileInMB = (double) fileBytes / (1024 * 1024);
+
+                if (fileInMB >= 1024) {
+                    double fileInGB = fileInMB / 1024;
+                    plotSizeLabel.setText(String.format("%d nonces (~%.2f GB)", nonces, fileInGB));
+                } else {
+                    plotSizeLabel.setText(String.format("%d nonces (~%.2f MB)", nonces, fileInMB));
+                }
+            } else {
+                // Se il file non esiste (es. bottone Genera Plot acceso)
+                plotSizeLabel.setText("File non ancora generato");
+            }
+        } catch (Exception e) {
+            plotSizeLabel.setText("Errore lettura dimensioni");
+        }
     }
 }
 
