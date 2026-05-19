@@ -8,10 +8,9 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -61,12 +60,7 @@ public class LoginController {
         fileChooser.setTitle("Salva la tua Identità (.pem)");
         fileChooser.setInitialFileName("mokamint_identity.pem");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PEM Files", "*.pem"));
-
-        //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
-        String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
-        File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
-        fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
-
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
         File file = fileChooser.showSaveDialog(mnemonicTextArea.getScene().getWindow());
 
         if (file != null) {
@@ -82,16 +76,8 @@ public class LoginController {
                 var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
                 this.loggedKeyPair = entropy.keys("", signatureForDeadlines);
 
-                // Dump nativo in formato PEM
-                entropy.dump(Paths.get(file.getAbsolutePath()));
-
-                // Mostra il pop-up informativo (mostra le parole)
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Identità Creata");
-                alert.setHeaderText("Salvataggio completato!");
-                alert.setContentText("Il file PEM è pronto. \n\nPAROLE DI RECUPERO (Scrivile ora!):\n" + newMnemonic);
-
-                alert.showAndWait();    // attendo che l'utente prema ok sul pop-up
+                entropy.dump(Paths.get(file.getAbsolutePath()));    // scrittura file .pem
+                showMnemonicPopup(newMnemonic); // Mostra il pop-up informativo (mostra le parole)
 
                 System.out.println("Auto-login in corso... chiavi: " + loggedKeyPair.getPublic());
                 switchToMiningScene(this.loggedKeyPair);
@@ -108,19 +94,12 @@ public class LoginController {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Seleziona il tuo file Identità");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PEM Files", "*.pem"));
-
-        //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
-        String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
-        File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
-        fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
-
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
         File selectedFile = fileChooser.showOpenDialog(pemPathField.getScene().getWindow());
 
         if (selectedFile != null) {
             pemPathField.setText(selectedFile.getAbsolutePath());
-
-            // MOSTRA IL TASTO ACCEDI
-            loginPemButton.setVisible(true);
+            loginPemButton.setVisible(true);    // MOSTRA IL TASTO ACCEDI
             loginPemButton.setManaged(true);
         }
     }
@@ -131,15 +110,9 @@ public class LoginController {
         String path = pemPathField.getText();
         if (!path.isEmpty()) {
             try {
-                /*this.loggedKeyPair = minerService.deriveKeyPairFromMnemonic(minerService.loadMnemonicFromFile(Path.of(path)));
-                System.out.println("Login da file JSON completato! chiavi: " + loggedKeyPair.getPublic());
-                switchToMiningScene(this.loggedKeyPair);
-            } catch (Exception e) {
-                showError("File JSON non valido.");
-            }*/
                 var entropy = Entropies.load(Paths.get(path));
 
-                // Ricaviamo la coppia di chiavi usando l'algoritmo dinamico del server
+                // Ricava la coppia di chiavi usando l'algoritmo dinamico del server
                 var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
                 this.loggedKeyPair = entropy.keys("", signatureForDeadlines);
 
@@ -214,9 +187,8 @@ public class LoginController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/mining.fxml"));
             Parent root = loader.load();
 
-            // Otteniamo il controller della pagina di mining
+            // Ottengo il controller della pagina di mining
             MiningController miningController = loader.getController();
-
             miningController.setMiningData(this.minerService, keys, this.miningSpecification);
 
             // cambio scena
@@ -232,7 +204,7 @@ public class LoginController {
     }
 
 
-    // Metodo helper veloce per gli errori
+    // Metodo helper per gli errori
     private void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setContentText(message);
@@ -247,7 +219,7 @@ public class LoginController {
             String chainID = specification.getChainId();
             var signatureAlg = specification.getSignatureForBlocks();
 
-            // Configura il tuo servizio helper interno
+            // Configura il servizio helper interno
             this.minerService.configure(uri, path, signatureAlg, chainID);
 
             System.out.println("Specifiche caricate nel LoginController! Algoritmo del server: " + signatureAlg.getName());
@@ -255,6 +227,49 @@ public class LoginController {
             e.printStackTrace();
             showError("Errore nella configurazione delle specifiche: " + e.getMessage());
         }
+    }
 
+    private void showMnemonicPopup(String mnemonic) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Identità Creata");
+        alert.setHeaderText("Salvataggio completato!");
+
+        DialogPane dialogPane = alert.getDialogPane();
+        String cssPath = LoginController.class.getResource("/layout/style.css").toExternalForm();
+        dialogPane.getStylesheets().add(cssPath);
+        dialogPane.getStyleClass().add("dialog-pane");
+
+        Label warningLabel = new Label(
+                "Il file PEM è pronto.\n\n" +
+                        "ATTENZIONE: Salva queste 12 parole in un luogo sicuro.\n" +
+                        "Questa è l'UNICA volta che ti verranno mostrate.\n" +
+                        "Se le perdi, non potrai più recuperare il tuo account!"
+        );
+        warningLabel.getStyleClass().add("dialog-warning-label");
+
+        TextArea mnemonicArea = new TextArea(mnemonic);
+        mnemonicArea.setEditable(false);
+        mnemonicArea.setWrapText(true);
+        mnemonicArea.setPrefRowCount(2);
+        mnemonicArea.setPrefWidth(400);
+        mnemonicArea.getStyleClass().add("dialog-mnemonic-area");
+
+        Button btnCopy = new Button("📋 Copia negli appunti");
+        btnCopy.getStyleClass().add("button-dialog-copy");
+        btnCopy.setOnAction(e -> {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            content.putString(mnemonic);
+            clipboard.setContent(content);
+
+            btnCopy.setText("✓ Copiato!");
+            btnCopy.setDisable(true);
+        });
+
+        VBox customContent = new VBox(12);
+        customContent.getChildren().addAll(warningLabel, mnemonicArea, btnCopy);
+        dialogPane.setContent(customContent);
+
+        alert.showAndWait();
     }
 }

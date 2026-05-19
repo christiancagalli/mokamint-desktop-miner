@@ -36,10 +36,8 @@ public class ConnectionController {
     private void handleRemoveUri() {
         String selectedUri = uriComboBox.getSelectionModel().getSelectedItem();
         if (selectedUri != null && !selectedUri.isEmpty()) {
-            // 1. Rimuovi dalle preferenze
-            MinerPrefsManager.removeUri(selectedUri);
-            // 2. Rimuovi dalla ComboBox graficamente
-            uriComboBox.getItems().remove(selectedUri);
+            MinerPrefsManager.removeUri(selectedUri);   // 1. Rimuovi dalle preferenze
+            uriComboBox.getItems().remove(selectedUri); // 2. Rimuovi dalla ComboBox graficamente
             uriComboBox.getSelectionModel().clearSelection();
         }
     }
@@ -50,22 +48,24 @@ public class ConnectionController {
         fileChooser.setInitialFileName("plotfile.plot");
         fileChooser.setTitle("Seleziona o crea il File di Plot");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Plot Files", "*.plot"));
-        //fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));                                                      //TODO: da scommentare prima della consegna
-        String home = System.getProperty("user.home");                                                                                     //QUESTA DA ELIMINARE
-        File initialDir = new File(home + File.separator + "Documenti" + File.separator + "tesi" + File.separator + "temp");      //QUESTA PURE
-        fileChooser.setInitialDirectory(initialDir);                                                                                       //ANCHE QUESTA
+        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
         File selectedFile = fileChooser.showSaveDialog(uriComboBox.getScene().getWindow());
         if (selectedFile != null) {
             plotPathField.setText(selectedFile.getAbsolutePath());
         }
     }
 
+    private void showStatusMessage(String message) {
+        errorLabel.setText(message);
+        errorLabel.setStyle("-fx-text-fill: #ffb627; -fx-font-weight: bold; -fx-font-size: 13px;");
+        errorLabel.setVisible(true);
+    }
 
     private void showErrorMessage(String message) {
         errorLabel.setText(message);
+        errorLabel.setStyle("-fx-text-fill: #ff4444; -fx-font-weight: bold; -fx-font-size: 13px;");
         errorLabel.setVisible(true);
 
-        // Opzionale: dopo 5 secondi la scritta scompare
         PauseTransition delay = new PauseTransition(Duration.seconds(5));
         delay.setOnFinished(e -> errorLabel.setVisible(false));
         delay.play();
@@ -81,42 +81,37 @@ public class ConnectionController {
             return;
         }
 
-        errorLabel.setText("Connessione a " + uri + "in corso ...");
-        errorLabel.setVisible(true);
+        showStatusMessage("Connessione a " + uri + "in corso ...");
 
-        // Creiamo un Task in background per non bloccare la GUI durante la connessione di rete
+        // Creo un Task in background per non bloccare la GUI durante la connessione di rete
         Task<MiningSpecification> connectionTask = new Task<>() {
             @Override
             protected MiningSpecification call() throws Exception {
                 URI serverUri = new URI(uri);
-                // Apriamo il servizio con il timeout inviato dal prof (es. 10000ms)
+                // Apro il servizio
                 try (var service = MinerServices.of(serverUri, 10000)) {
-                    // Chiediamo le informazioni al server e le restituiamo
+                    // Chiedo le informazioni al server e le restituisco
                     return service.getMiningSpecification();
                 }
             }
         };
 
-        // Cosa fare se la connessione ha successo
+        // se la connessione ha successo
         connectionTask.setOnSucceeded(event -> {
             MiningSpecification specification = connectionTask.getValue();
             System.out.println("Specifiche ricevute con successo dal server!");
 
-            // Salva l'URI solo se valido e connesso
-            MinerPrefsManager.saveUri(uri);
-
-            // Passiamo alla scena successiva includendo le specifiche scaricate
+            MinerPrefsManager.saveUri(uri); // Salva l'URI solo se valido e connesso
             switchToLoginScene(uri, path, specification);
         });
 
-        // Cosa fare se la connessione fallisce (es: server spento, URI errato)
+        // se la connessione fallisce (es: server spento, URI errato)
         connectionTask.setOnFailed(event -> {
             Throwable exception = connectionTask.getException();
             showErrorMessage("Connessione fallita: " + exception.getMessage());
             System.err.println("Errore connessione: " + exception.getMessage());
         });
-
-        // Avviamo il thread in background
+        // Avvia il thread in background
         new Thread(connectionTask).start();
     }
 
@@ -125,13 +120,13 @@ public class ConnectionController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/login.fxml"));
             Parent root = loader.load();
 
-            // 1. Otteniamo il controller della pagina di login
+            // Ottengo il controller della pagina di login
             LoginController loginController = loader.getController();
 
-            // 2. Passiamo 'uri del miner (dovrai creare questo metodo nel LoginController)
+            // Passo l'uri del miner
             loginController.setConnectionData(uri, path, specification);
 
-            // 3. Cambiamo effettivamente la scena sul desktop
+            // Cambio effettivo della scena sul desktop
             Stage stage = (Stage) uriComboBox.getScene().getWindow();
             stage.setScene(new Scene(root));
             stage.setTitle("Mokamint - Accesso");

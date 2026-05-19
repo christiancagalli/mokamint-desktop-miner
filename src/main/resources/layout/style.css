@@ -1,21 +1,20 @@
 /* ==========================================================================
-   1. STRUTTURA E CONTENITORI (Palette schiarita per maggiore luminosità)
+                         1. STRUTTURA E CONTENITORI
    ========================================================================== */
 
-/* Lo sfondo generale passa da un cupo #1e1e24 a un grigio piombo morbido */
 .main-container {
     -fx-background-color: #2f3136;
 }
 
-/* Linea di divisione (Separator) riadattata allo sfondo più chiaro */
+/* Linea di divisione */
 .separator .line {
     -fx-border-color: #4f545c;
     -fx-border-width: 1px;
 }
 
-/* Box superiore contenente i dettagli del minatore e della rete */
+/* infoBox nella pagina di mining */
 .info-box {
-    -fx-background-color: #232428; /* Stesso colore morbido dei log per coerenza */
+    -fx-background-color: #232428;
     -fx-padding: 15px;
     -fx-background-radius: 6px;
     -fx-border-color: #4f545c;
@@ -23,9 +22,8 @@
     -fx-border-width: 1px;
 }
 
-
 /* ==========================================================================
-   2. TESTI ED ETICHETTE (Migliorato il contrasto)
+                            2. TESTI ED ETICHETTE
    ========================================================================== */
 
 .title-label {
@@ -39,12 +37,11 @@
     -fx-font-size: 13px;
 }
 
-
 /* ==========================================================================
-   3. CAMPI DI INPUT (TextField, ComboBox e Mnemonic)
+            3. CAMPI DI INPUT (TextField, ComboBox e Mnemonic)
    ========================================================================= */
 
-/* Campo di testo standard (Utilizzato nella pagina di connessione) */
+/* Campo di testo standard (pagina di connessione) */
 .text-field {
     -fx-background-color: #36393f;
     -fx-text-fill: #ffffff;
@@ -58,7 +55,7 @@
     -fx-border-color: #9c64ed;
 }
 
-/* NUOVO: Input compatto specifico per i Nonces nella riga comandi inline */
+/* Input per i Nonces */
 .text-field-compact {
     -fx-background-color: #1e1f22;
     -fx-text-fill: #ffffff;
@@ -75,7 +72,7 @@
     -fx-border-color: #9c64ed;
 }
 
-/* La ComboBox (Tendina) - Ingrandita e resa più corposa */
+/* La ComboBox (Tendina di selezione endpoint) */
 .combo-box {
     -fx-background-color: #36393f;
     -fx-background-radius: 5px;
@@ -87,9 +84,7 @@
 }
 
 .combo-box:focused {
-    -fx-background-color: #36393f;
     -fx-border-color: #686d73;
-    -fx-focused-visible: false;
     -fx-background-insets: 0;
 }
 
@@ -115,10 +110,7 @@
     -fx-padding: 5px 6px;
 }
 
-.combo-box:hover > .arrow-button > .arrow {
-    -fx-background-color: #9c64ed;
-}
-
+.combo-box:hover > .arrow-button > .arrow,
 .combo-box:showing > .arrow-button > .arrow {
     -fx-background-color: #9c64ed;
 }
@@ -151,20 +143,19 @@
 /* Area Mnemonic (Casella di testo nel login) */
 .text-area-mnemonic {
     -fx-font-family: "Monospaced", monospace;
-    -fx-control-inner-background: #36393f !important;
-    -fx-text-fill: #ffffff !important;
     -fx-border-color: #4f545c;
 }
+.text-area-mnemonic,
 .text-area-mnemonic .content {
     -fx-background-color: #36393f !important;
+    -fx-control-inner-background: #36393f !important;
+    -fx-text-fill: #ffffff !important;
 }
 
-
 /* ==========================================================================
-   4. INTERFACCIA DI MINING (Console dei Log e ProgressBar)
+               4. INTERFACCIA DI MINING (Console dei Log e ProgressBar)
    ========================================================================== */
 
-/* La console stacca nettamente dallo sfondo */
 .text-area {
     -fx-control-inner-background: #2a2b2f;
     -fx-text-fill: #e1d5f5;
@@ -186,10 +177,13 @@
     -fx-background-radius: 8px;
 }
 
-
 /* ==========================================================================
-   5. PULSANTI
+                5. PULSANTI (Base comune e varianti)
    ========================================================================== */
+
+.button {
+    -fx-cursor: hand;
+}
 
 /* Pulsante Primario Lilla */
 .button-primary {
@@ -198,7 +192,6 @@
     -fx-font-weight: bold;
     -fx-background-radius: 8px;
     -fx-padding: 10 20;
-    -fx-cursor: hand;
 }
 .button-primary:hover {
     -fx-background-color: #834fe3;
@@ -212,7 +205,6 @@
     -fx-border-radius: 8px;
     -fx-background-radius: 8px;
     -fx-padding: 10 20;
-    -fx-cursor: hand;
 }
 .button-secondary:hover {
     -fx-background-color: #4f545c;
@@ -226,9 +218,64 @@
     -fx-border-radius: 5px;
     -fx-background-radius: 5px;
     -fx-font-weight: bold;
-    -fx-cursor: hand;
 }
 .button-delete:hover {
     -fx-background-color: #ff4444;
     -fx-text-fill: #ffffff;
+}
+
+/* ==========================================================================
+                6. DIALOGS E ALERTS (Popup Identità)
+   ========================================================================== */
+
+/* Sfondo principale del popup e dell'header */
+.dialog-pane {
+    -fx-background-color: #2f3136 !important;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #232428 !important;
+}
+
+/* Forza il titolo dell'header */
+.dialog-pane:header .header-panel .label {
+    -fx-text-fill: #ffffff !important;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+/* Testo descrittivo interno */
+.dialog-warning-label {
+    -fx-text-fill: #dcddde;
+    -fx-font-size: 13px;
+}
+
+/* Area delle parole mnemoniche da salvare */
+.dialog-mnemonic-area {
+    -fx-font-family: 'Consolas', monospace;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.dialog-mnemonic-area,
+.dialog-mnemonic-area .content,
+.dialog-mnemonic-area .text {
+    -fx-control-inner-background: #36393f !important;
+    -fx-background-color: #36393f !important;
+    -fx-text-fill: white;
+}
+
+/* Pulsante copia interno all'alert */
+.button-dialog-copy {
+    -fx-background-color: #40444b;
+    -fx-text-fill: white;
+    -fx-border-color: #9c64ed;
+    -fx-border-radius: 4px;
+    -fx-padding: 6px 12px;
+}
+.button-dialog-copy:hover {
+    -fx-background-color: #4f545c;
+}
+.button-dialog-copy:disabled {
+    -fx-opacity: 0.6;
+    -fx-text-fill: #b992f3;
 }
