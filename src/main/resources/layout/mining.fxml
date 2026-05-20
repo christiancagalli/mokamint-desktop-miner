@@ -34,11 +34,14 @@
             <Label text="Plot Size:" GridPane.columnIndex="0" GridPane.rowIndex="2" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
             <Label fx:id="plotSizeLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="2" styleClass="label-standard"/>
 
-            <Label text="Nodo URI:" GridPane.columnIndex="0" GridPane.rowIndex="3" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
-            <Label fx:id="nodeUrlLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="3" styleClass="label-standard"/>
+            <Label text="Bilancio Wallet:" GridPane.columnIndex="0" GridPane.rowIndex="3" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
+            <Label fx:id="balanceLabel" text="Caricamento..." GridPane.columnIndex="1" GridPane.rowIndex="3" styleClass="label-standard"/>
 
-            <Label text="Chain ID:" GridPane.columnIndex="0" GridPane.rowIndex="4" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
-            <Label fx:id="chainIdLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="4" styleClass="label-standard"/>
+            <Label text="Nodo URI:" GridPane.columnIndex="0" GridPane.rowIndex="4" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
+            <Label fx:id="nodeUrlLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="4" styleClass="label-standard"/>
+
+            <Label text="Chain ID:" GridPane.columnIndex="0" GridPane.rowIndex="5" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
+            <Label fx:id="chainIdLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="5" styleClass="label-standard"/>
         </GridPane>
     </VBox>
 

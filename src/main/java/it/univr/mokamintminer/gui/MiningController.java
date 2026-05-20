@@ -13,10 +13,12 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 
 import java.io.File;
+import java.math.BigInteger;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyPair;
+import java.util.Optional;
 
 public class MiningController {
 
@@ -33,6 +35,7 @@ public class MiningController {
     @FXML private Label nodeUrlLabel;
     @FXML private Label chainIdLabel;
     @FXML private Label plotSizeLabel;
+    @FXML private Label balanceLabel;
 
     private DesktopMinerService miner;
     private MinerService minerService;
@@ -73,6 +76,7 @@ public class MiningController {
         }
 
         updatePlotSizeInfo();
+        updateWalletBalance();
 
         startMiningButton.setDisable(false); // Acceso (se il plot esiste)
         stopMiningButton.setDisable(true);
@@ -243,6 +247,7 @@ public class MiningController {
                             Platform.runLater(() -> {
                                 log("Nuova deadline trovata! (Totale: " + totalDeadlines + ")");
                                 statusLabel.setText("Status: Mining attivo...");
+                                updateWalletBalance();
                             });
                         }
 
@@ -313,5 +318,37 @@ public class MiningController {
         } catch (Exception e) {
             plotSizeLabel.setText("Errore lettura dimensioni");
         }
+    }
+
+    // metodo per aggiornare il Balance del Wallet
+    private void updateWalletBalance() {
+        // Se il miner non è ancora stato avviato, non possiamo fare richieste di rete
+        if (miner == null || userKeys == null || miningSpecification == null) return;
+
+        Task<Optional<java.math.BigInteger>> balanceTask = new Task<>() {
+            @Override
+            protected Optional<java.math.BigInteger> call() throws Exception {
+                // Prendiamo l'algoritmo dalle specifiche
+                var signatureAlgo = miningSpecification.getSignatureForBlocks();
+                return miner.getBalance(signatureAlgo, userKeys.getPublic());
+            }
+        };
+
+        balanceTask.setOnSucceeded(e -> {
+            Optional<java.math.BigInteger> balanceOpt = balanceTask.getValue();
+            if (balanceOpt.isPresent()) {
+                java.math.BigInteger rawBalance = balanceOpt.get();
+                Platform.runLater(() -> balanceLabel.setText(rawBalance + " MOK"));
+            } else {
+                Platform.runLater(() -> balanceLabel.setText("0 MOK (Nuovo Account)"));
+            }
+        });
+
+        balanceTask.setOnFailed(e -> {
+            Platform.runLater(() -> balanceLabel.setText("Errore bilancio"));
+            balanceTask.getException().printStackTrace();
+        });
+
+        new Thread(balanceTask).start();
     }
 }
