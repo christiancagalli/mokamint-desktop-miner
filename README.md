@@ -1,53 +1,41 @@
 # Mokamint Desktop Miner
 
-A desktop application for the Mokamint blockchain that implements plot file creation and mining activity with a 
-graphical interface.
+A desktop application for the Mokamint blockchain that implements plot file creation, secure credential management, and mining activity monitor with a modern graphical interface.
 
-The project was developed as part of university thesis at the University of Verona, with the goal of replacing the 
-textual feedback of the existing CLI miner with a visual JavaFX interface, built on top of the official Mokamint APIs.
-
----
+The project was developed as part of a university thesis at the University of Verona, with the goal of replacing the textual feedback of the existing CLI miner with a secure, responsive, and visual JavaFX dashboard built on top of the official Mokamint APIs.
 
 ## Features
-- Plot file creation using the official Mokamint plotter ('io-mokamint-plotter')
-- Configurable plot size (number of nonces) directly from the GUI
-- Real-time progress bar during plot creation, with cancellation support
-- Mining session management via 'AbstractReconnectingMinerService'
-- Live graphical feedback for: 
-  - Connection status to a Mokamint node
-  - Deadline computation counter
-  - Mining activity log with timestamps
-- Graceful fallback simulation when no node is reachable (see Design Choises)
 
----
+- **Mnemonic Login (BIP39):** Secure login and key pair generation starting from a 12-word recovery phrase using `io.hotmoka.crypto`.
+- **Key Storage:** Automated persistence of generated keys into a local `.pem` file for seamless subsequent sessions.
+- **Plot File Creation:** Fully deterministic generation of plots utilizing the official `io-mokamint-plotter` algorithms.
+- **Dynamic Plot Size:** Configurable size inputs (number of nonces) directly handled from the UI with real-time feedback on expected file weight (MB/GB).
+- **Asynchronous Mining Monitor:** Real-time logging of challenge-response loops and computed deadlines connected to a live Mokamint node.
+- **Live Wallet Balance:** Background thread execution (`JavaFX Task`) that continuously queries the remote node to fetch and update the wallet balance (`MOK` tokens) safely without freezing the UI.
+- **Modern Dark UI:** Tailored CSS stylesheet featuring a futuristic dark scheme with vibrant lilac accent details.
 
 ## Architecture
 
-The application is structured into three main layers:
+The application implements a robust **Model-View-Controller (MVC)** architectural pattern decoupled into separate presentation modules:
 
-- **`Main`** - JavaFX entry point, loads the FXML layout and launches the stage
-- **`GUIController`** - handles all user interactions and UI updates; coordinates between the plot and mining services
-- **`DesktopMinerService`** - extends 'AbstractReconnectingMinerService'; wraps the Mokamint miner APIs and exposes 
-                             connection and deadline events via a 'MinerListener' interface
-- **`MinerService`** - encapsulates plot creation logic using 'Plots.create()' with real cryptographic keys and a valid 
-                       prolog
+- **Main / ConnectionController:** The application gateway. Handles connection testing to the remote node URI via WebSockets.
+- **LoginController:** Coordinates key recovery from the 12 words, handles cryptography setup, and manages local `.pem` file exports.
+- **MiningController:** The main cockpit. Handles asynchronous background Tasks for both plot building (`Plots.create`) and real-time ledger pooling for active balance updates.
+- **DesktopMinerService:** Extends `AbstractReconnectingMinerService` from the core library. It hooks into the node's WebSocket network layer and safely dispatches structural events (connection, disconnection, computed deadlines) to the GUI thread via a custom `MinerListener`.
 
----
+## Prerequisites
 
-### Prerequisites
+- **Java 21**
+- **Maven 3.8+**
 
-- Java 21
-- Maven 3.8+ 
+## How to Run
 
-## How to run
-
-### 1. Clone the repository
-
+### 1. Clone the repository:
 ```bash
-  git clone https://github.com/francescopintoo/mokamint-desktop-miner.git
-  cd mokamint-desktop-miner
+   git clone https://github.com/christiancagalli/mokamint-desktop-miner.git
+   cd mokamint-desktop-miner
 ```
-
+   
 ### 2. Build the project
 
 ```bash 
@@ -60,67 +48,29 @@ The application is structured into three main layers:
   mvn javafx:run
 ```
 
-### 4. Create a plot
-
-- Enter the node endpoint (e.g. `ws://localhost:8033`)
-- Enter a path for the plot file (e.g. `plot.bin`)
-- Enter the number of nonces (leave blank for default: 1000, ~250 MB)
-- Click **Create plot** and wait for the progress bar to complete
-- Click **Stop plot** to cancel at any time
-
-### 5. Start mining 
-
-- Make sure a plot file has been created
-- Enter the node endpoint
-- Click **Start mining** 
-- The log area will show connection events and computed deadlines in real time
-- The deadlines counter updates after each computation
-- Click **Stop mining** to end the session
-
 ---
 
-## Design Choises and Known Limitations
+## Design Choices
 
-## Plot creation - fully real
+### 1. Multi-Stage Architectural Pattern (MVC)
+Unlike the initial prototype which relied on a single monolithic view-controller, the application has been refactored into a modular **Model-View-Controller (MVC)** structure. Responsibilities are now cleanly separated into distinct stages:
+- `ConnectionController`: Manages the remote WebSocket handshake logic.
+- `LoginController`: Secures cryptographic identity via a 12-word mnemonic phrase (`BIP39`).
+- `MiningController`: Main dashboard supervising parallel background tasks.
 
-Plot creation is fully implemented using the official Mokamint APIs. Specifically: 
+### 2. Asynchronous Thread Management & UI Safety
+Network interactions (polling the remote node for active mining challenges) and heavy disk I/O operations (generating multi-gigabyte `.plot` binary files) are highly blocking processes.
+To prevent the *JavaFX Application Thread* from freezing, these operations are offloaded to background workers using `javafx.concurrent.Task`. When a background execution finishes (e.g., retrieving a new wallet balance or computing a deadline), thread synchronization and UI updates are safely dispatched back to the main thread via `Platform.runLater()` hooks.
 
--`SignatureAlgorithms.ed25519()` and `HashingAlgorithms.sha256()` are used for cryptographic setup
-- A valid `Prolog` is constructed with locally generated key pairs
-- `Plots.create()` is called directly, producing a real plot file on disk
-- The plot size is configurable from the GUI (deafault: 100 nonces, ~250 MB)
-
-The plot size is currently fixed at `1000` nonces (approximately 250 MB) for development purposes. This is controlled by 
-the `TEST_PLOT_SIZE` constant in `MinerService.java`.
-
-## Mining - real integration with simulation fallback
-
-The mining layer is built on `AbstractReconnectingMinerService` and uses `LocalMiners.of()` with a real loaded plot 
-file. The integration is real: if a Mokamint node is available at the given endpoint, the miner will connect, receive 
-deadlines, and fire the corresponding callbacks. 
-
-However, during development, activating a local Mokamint node consistently proved infeasible due to the 
-following issues: 
-  
-- `ApplocationNotFoundException` when launching the node's empty application
-- WebSocket handshake errors during connection attempts
-- Module configuration and Maven execution issues with the node components
-
-These are known infrastructures-level issues tied to the early-stage nature of the Mokamint project, and are not caused
-by errors in this application's code. 
-
-As a result, when no node connection is established within 3 seconds of starting mining, tha application activates an 
-event-driven simulation that replicates the expected node behaviour: a connected event, a sequence of deadline 
-computations, and a disconnected event. If a real node becomes available and `onConnected()` fires, the simulation is 
-immediately suppressed via an `AtomicBoolean` flag. 
-
-This approach mirrors standard industry practice for testing event-driven system in the absence of external 
-infrastructure. 
+### 3. Fully Real Production Integration
+All mock behaviors and simulation fallbacks have been deprecated. The miner features an uncompromised production-ready integration with the live network:
+- **Plot Creation:** Generates cryptographically valid `.plot` files directly on disk through `Plots.create()`, uniquely bound to the user's public key using `ed25519` and `sha256`.
+- **Live Node Consensus:** Establishes a true WebSocket stateful connection to the University of Verona's official node (`ws://lipari.hotmoka.io:8025`).
+- **Wallet Ledger Sync:** Performs real-time, event-driven pooling of the blockchain ledger to track block rewards and display the precise wallet balance in `MOK` tokens.
 
 ---
 
 ## Project Structure
-
 ```
 mokamint-desktop-miner/
 ├── src/
@@ -130,13 +80,18 @@ mokamint-desktop-miner/
 │       │       ├── core/
 │       │       │   └── DesktopMinerService.java
 │       │       ├── gui/
-│       │       │   ├── GUIController.java
+│       │       │   ├── ConnectionController.java
+│       │       │   ├── LoginController.java
+│       │       │   ├── MiningController.java
 │       │       │   └── Main.java
 │       │       └── services/
 │       │           └── MinerService.java
 │       └── resources/
-│           └── layout/
-│               └── gui.fxml
+│           ├── layout/
+│           │   ├── connection.fxml
+│           │   ├── login.fxml
+│           │   └── mining.fxml
+│           └── style.css
 ├── pom.xml
 └── README.md
 ```
@@ -145,16 +100,11 @@ mokamint-desktop-miner/
 
 ## Dependencies
 
-| Artifact                       | Version | Purpose                            |
-|--------------------------------|---------|------------------------------------|
-| `io-mokamint-plotter`          | 1.6.1   | Plot file creation                 |
-| `io-mokamint-plotter-api`      | 1.6.1   | Plotter API                        |
-| `io-mokamint-miner-local`      | 1.6.1   | Local miner implementation         |
-| `io-mokamint-miner-service`    | 1.6.1   | `AbstravtReconnectingMinerService` |
-| `io-mokamint-miner-remote-api` | 1.6.1   | Remote miner API                   |
-| `io-mokamint-node-api`         | 1.6.1   | Node API                           |
-| `io-mokamint-node-remote`      | 1.6.1   | Remote node connection             |
-| `javafx-controls`              | 21      | GUI controls                       |
-| `javafx-fxml`                  | 21      | FXML layout loading                |
-| `toml4j`                       | 0.7.3   | TOML configuration support         |
-
+| Artifact | Version | Purpose |
+|:---|:---|:---|
+| `io-mokamint-plotter` | 1.6.1 | Plot file structural compilation |
+| `io-mokamint-miner-local` | 1.6.1 | Local engine mining execution |
+| `io-mokamint-miner-service` | 1.6.1 | Base reconnecting WebSocket loop abstraction |
+| `io-hotmoka-crypto` | Core | Entropy, BIP39 parsing, and key pair generation |
+| `javafx-controls` | 21 | Graphical interface native elements |
+| `javafx-fxml` | 21 | FXML layout asynchronous rendering |
