@@ -36,8 +36,13 @@ test_chiave.json
 # ==========================================================================
 *.plot
 mio_test.plot
+# Ignora TUTTA la cartella di storage: viene ricreata dal programma all'avvio
+# (mkdirs su identities/ e data/). Contiene chiavi .pem, plot e miners.xml:
+# sono dati locali e NON devono finire su GitHub.
+miner_storage/
 
 # ==========================================================================
 # 6. LOG
 # ==========================================================================
 *.log
+

@@ -1,11 +1,15 @@
 package it.univr.mokamintminer.gui;
 
+import io.hotmoka.crypto.Base58;
 import io.mokamint.miner.api.MiningSpecification;
 import io.mokamint.nonce.Prologs;
 import io.mokamint.nonce.api.Prolog;
 import io.mokamint.plotter.Plots;
 import it.univr.mokamintminer.core.DesktopMinerService;
+import it.univr.mokamintminer.services.MinerManager;
 import it.univr.mokamintminer.services.MinerService;
+import it.univr.mokamintminer.services.MinerInstance;
+import it.univr.mokamintminer.services.MinerXmlManager;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -39,81 +43,124 @@ public class MiningController {
 
     private DesktopMinerService miner;
     private MinerService minerService;
+    private MinerInstance minerData; // Modello dati dell'XML
     private KeyPair userKeys;
     private Task<Void> plotTask;
     private MiningSpecification miningSpecification;
 
     /**
-     * Riceve i dati dai controller precedenti.
+     * Inizializza i dati nella console di mining gestendo sia flussi di rete che ripristini da XML.
      */
-    public void setMiningData(MinerService service, KeyPair keys, MiningSpecification specification) {
+    public void setMiningData(MinerService service, KeyPair keys, MiningSpecification specification, MinerInstance minerInstance) {
         this.minerService = service;
         this.userKeys = keys;
         this.miningSpecification = specification;
+        this.minerData = minerInstance;
+
         System.out.println("chiavi nel mining controller: " + userKeys.getPublic());
 
+        // 1. Chiave pubblica in formato base58 (lo stesso usato dal nodo), più leggibile dell'hex
         try {
-            byte[] rawPubBytes = keys.getPublic().getEncoded();
-            String pubKeyHex = MinerService.bytesToHex(rawPubBytes);
-
-            if (pubKeyHex.length() > 100) {
-                pubKeyLabel.setText(pubKeyHex.substring(pubKeyHex.length() - 25) + "...");
+            String pubBase58;
+            if (minerInstance != null && minerInstance.getPublicKeyDeadlinesBase58() != null
+                    && !minerInstance.getPublicKeyDeadlinesBase58().isBlank()) {
+                pubBase58 = minerInstance.getPublicKeyDeadlinesBase58();
             } else {
-                pubKeyLabel.setText(pubKeyHex);
+                // Fallback: ricava il base58 dall'algoritmo di firma per le deadline
+                String sigStr = (specification != null) ? specification.getSignatureForDeadlines().toString()
+                        : (minerInstance != null ? minerInstance.getSignatureForDeadlines() : "ed25519");
+                var sigAlgo = io.hotmoka.crypto.SignatureAlgorithms.of(sigStr);
+                pubBase58 = Base58.toBase58String(sigAlgo.encodingOf(keys.getPublic()));
             }
-
+            pubKeyLabel.setText(pubBase58);
         } catch (Exception e) {
             pubKeyLabel.setText("Errore lettura chiave");
             System.err.println("Errore nel popolamento della label: " + e.getMessage());
         }
-        plotPathLabel.setText(minerService.getPlotPath());
-        nodeUrlLabel.setText(minerService.getNodeUri());
-        // prende la Chain ID
+
+        // 2. Recupero intelligente dei percorsi e URI (Fallback su minerData se il servizio è vuoto)
+        String nodeUri = (minerInstance != null) ? minerInstance.getNodeUri() : service.getNodeUri();
+        String plotPath = (minerInstance != null) ? minerInstance.getPlotPath() : service.getPlotPath();
+
+        nodeUrlLabel.setText(nodeUri != null ? nodeUri : "N/A");
+        plotPathLabel.setText(plotPath != null ? plotPath : "N/A");
+
+        // 3. Recupero flessibile della Chain ID
         if (miningSpecification != null) {
             chainIdLabel.setText(miningSpecification.getChainId());
+            log("Dati e specifiche caricati dal server. Pronto per il mining.");
+        } else if (minerInstance != null && minerInstance.getChainId() != null && !minerInstance.getChainId().isEmpty()) {
+            chainIdLabel.setText(minerInstance.getChainId());
+            log("Dati e specifiche caricati dall'XML locale. Pronto per il mining.");
         } else {
             chainIdLabel.setText("N/A");
+            log("Attenzione: Specifiche della chain mancanti.");
         }
 
+        // 4. Aggiornamento degli elementi grafici e bottoni
         updatePlotSizeInfo();
-        updateWalletBalance();
 
-        startMiningButton.setDisable(false); // Acceso (se il plot esiste)
-        stopMiningButton.setDisable(true);
+        if (miningSpecification != null || (minerInstance != null && minerInstance.getNodeUri() != null)) {
+            updateWalletBalance();
+        }
+
+        // Lasciamo che controlli prima lo stato fisico del file plot su disco
         updateButtonsState();
-        log("Dati e specifiche caricati dal server. Pronto per il mining.");
+
+        // SINK DEL MANAGER: Controlliamo se il manager lo sta già facendo girare in background
+        if (minerInstance != null) {
+            boolean running = MinerManager.getInstance().isMinerRunning(minerInstance.getUuid());
+
+            if (running) {
+                // Se sta già girando, agganciamo il riferimento al servizio core
+                this.miner = MinerManager.getInstance().getActiveService(minerInstance.getUuid());
+
+                // Instradiamo i log del miner nella console di QUESTA finestra
+                attachListener();
+
+                // Aggiorniamo la UI di conseguenza: Start spento, Stop acceso
+                startMiningButton.setDisable(true);
+                stopMiningButton.setDisable(false);
+                statusLabel.setText("Status: Mining attivo in background...");
+                log("Sincronizzato con il processo in background attivo.");
+            }
+        }
     }
 
+    /**
+     * Abilita o disabilita i pulsanti a seconda della presenza fisica del file plot su disco.
+     */
     private void updateButtonsState() {
-        File plotFile = new File(minerService.getPlotPath());
-        boolean exists = plotFile.exists();
+        String currentPlotPath = (minerData != null && minerData.getPlotPath() != null) ? minerData.getPlotPath() :
+                (minerService != null ? minerService.getPlotPath() : "");
+
+        File plotFile = new File(currentPlotPath);
+        boolean exists = !currentPlotPath.isEmpty() && plotFile.exists();
 
         if (exists) {
-            // FILE ESISTE: Nascondi input size e disabilita "Genera"
             sizeInputBox.setVisible(false);
             sizeInputBox.setManaged(false);
             btnCreatePlot.setDisable(true);
             startMiningButton.setDisable(false);
             statusLabel.setText("Status: Plot pronto per il mining.");
         } else {
-            // FILE MANCANTE: Mostra input size e abilita "Genera"
             sizeInputBox.setVisible(true);
             sizeInputBox.setManaged(true);
             btnCreatePlot.setDisable(false);
             startMiningButton.setDisable(true);
-            statusLabel.setText("Status: Inserisci la dimensione per generare il plot.");
+            statusLabel.setText("Status: Inserisci la dimension per generare il plot.");
         }
     }
 
     /**
-     * Gestisce la creazione del file di Plot.
+     * Gestisce la creazione indipendente del file di Plot ricostruendo i Prolog dall'XML se offline.
      */
     @FXML
     private void handleCreatePlot(){
         if (plotTask != null && plotTask.isRunning()) return;
 
-        if (miningSpecification == null) {
-            log("Errore: Specifiche del server mancanti!");
+        if (miningSpecification == null && minerData == null) {
+            log("Errore: Specifiche del server e locali mancanti!");
             return;
         }
 
@@ -134,36 +181,49 @@ public class MiningController {
                 updateMessage("Creazione Plot (" + size + " nonces)...");
                 long sizeInMB = (size * 262144) / (1024 * 1024);
 
-                // 2. Mandiamo i log alla UI in modo sicuro (tramite Platform.runLater)
                 javafx.application.Platform.runLater(() -> {
                     logArea.appendText("[PLOT] Avvio creazione plot deterministico...\n");
                     logArea.appendText("[PLOT] Dimensione stimata: " + sizeInMB + " MB\n");
                 });
 
-                // Spacchetto le info dalla specifica,
-                String chainId = miningSpecification.getChainId();
-                var signatureForBlocks = miningSpecification.getSignatureForBlocks();
-                var publicKeyOfServer = miningSpecification.getPublicKeyForSigningBlocks();
-                var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
-                var hashingForDeadlines = miningSpecification.getHashingForDeadlines();
+                // Estrazione parametri sicura (Usa l'XML locale se la specifica di rete è null)
+                String chainId = (miningSpecification != null) ? miningSpecification.getChainId() : minerData.getChainId();
 
-                // Costruisco il Prolog
+                // 1. FIRMA BLOCCHI: Trasforma es. "ed25519" -> "ED25519"
+                String sigBlocksStr = (miningSpecification != null) ? miningSpecification.getSignatureForBlocks().toString() : minerData.getSignatureForBlocks();
+                sigBlocksStr = (sigBlocksStr != null) ? sigBlocksStr.trim().toUpperCase() : "ED25519";
+                var signatureForBlocks = io.hotmoka.crypto.SignatureAlgorithms.of(sigBlocksStr);
+
+                // 2. FIRMA DEADLINES: Trasforma es. "ed25519" -> "ED25519"
+                String sigDeadlinesStr = (miningSpecification != null) ? miningSpecification.getSignatureForDeadlines().toString() : minerData.getSignatureForDeadlines();
+                sigDeadlinesStr = (sigDeadlinesStr != null) ? sigDeadlinesStr.trim().toUpperCase() : "ED25519";
+                var signatureForDeadlines = io.hotmoka.crypto.SignatureAlgorithms.of(sigDeadlinesStr);
+
+                // Recupero della chiave pubblica del server
+                var publicKeyOfServer = (miningSpecification != null) ? miningSpecification.getPublicKeyForSigningBlocks() :
+                        signatureForBlocks.publicKeyFromEncoding(io.hotmoka.crypto.Base58.fromBase58String(minerData.getPublicKeyBlocksBase58()));
+
+                // 3. HASHING DEADLINES: Trasforma "shabal256" dell'XML in "SHABAL256" (Risolve il NullPointerException!)
+                String hashStr = (miningSpecification != null) ? miningSpecification.getHashingForDeadlines().toString() : minerData.getHashingForDeadlines();
+                hashStr = (hashStr != null) ? hashStr.trim().toUpperCase() : "SHABAL256";
+                var hashingForDeadlines = io.hotmoka.crypto.HashingAlgorithms.of(hashStr);
+
                 Prolog prolog = Prologs.of(
                         chainId,
                         signatureForBlocks,
                         publicKeyOfServer,
                         signatureForDeadlines,
-                        userKeys.getPublic(), // La chiave pubblica del miner
-                        new byte[0] // I metadati extra vuoti
+                        userKeys.getPublic(),
+                        new byte[0]
                 );
 
-                Path path = Paths.get(minerService.getPlotPath());
+                String finalPlotPath = (minerData != null) ? minerData.getPlotPath() : minerService.getPlotPath();
+                Path path = Paths.get(finalPlotPath);
 
-                // crea il file di plot
                 Plots.create(
                         path,
                         prolog,
-                        0L, // startNonce
+                        0L,
                         size,
                         hashingForDeadlines,
                         progress -> {
@@ -171,22 +231,35 @@ public class MiningController {
                             updateMessage("In corso: " + progress + "%");
                         }
                 );
-                    javafx.application.Platform.runLater(() ->
-                            logArea.appendText("[PLOT] File creato con successo!\n")
-                    );
+
+                javafx.application.Platform.runLater(() ->
+                        logArea.appendText("[PLOT] File creato con successo!\n")
+                );
 
                 return null;
             }
         };
 
         System.out.println("AVVIO PLOTTING UFFICIALE CON LA CHIAVE: " + MinerService.bytesToHex(this.userKeys.getPublic().getEncoded()));
-        // barra di progresso e messaggi
         progressBar.progressProperty().bind(plotTask.progressProperty());
         statusLabel.textProperty().bind(plotTask.messageProperty());
 
         plotTask.setOnSucceeded(e -> {
             unbindUI();
             log("Plot completato con successo! " + size + " nonces creati.");
+
+            try {
+                if (minerData != null) {
+                    minerData.setPlotSize(size);
+                    MinerXmlManager.addMiner(minerData);
+                    log("File XML aggiornato correttamente con la dimensione del plot.");
+                } else {
+                    log("Avviso: Impossibile aggiornare l'XML, dati del miner non associati.");
+                }
+            } catch (Exception ex) {
+                System.err.println("Errore salvataggio XML: " + ex.getMessage());
+            }
+
             statusLabel.setText("Status: Plot pronto.");
             updatePlotSizeInfo();
             updateButtonsState();
@@ -195,9 +268,9 @@ public class MiningController {
         plotTask.setOnFailed(e -> {
             unbindUI();
             Throwable ex = plotTask.getException();
-            log("Errore durante il plotting: " + plotTask.getException().getMessage());
+            log("Errore durante il plotting: " + (ex != null ? ex.getMessage() : "Sconosciuto"));
             statusLabel.setText("Status: Errore creazione.");
-            ex.printStackTrace();
+            if (ex != null) ex.printStackTrace();
         });
 
         new Thread(plotTask).start();
@@ -205,89 +278,128 @@ public class MiningController {
 
     @FXML
     private void onStartMining() {
-        log("Avvio sessione di mining...");
-        System.out.println("AVVIO MINING CON CHIAVE REALE: " + MinerService.bytesToHex(this.userKeys.getPublic().getEncoded()));
+        log("Richiesta avvio sessione di mining al Manager...");
 
-        try {
-            // Recupera i dati dal service
-            URI uri = URI.create(minerService.getNodeUri());
-            Path path = Path.of(minerService.getPlotPath());
-            String chainId = minerService.getChainID();
-
-            progressBar.setProgress(-1.0);
-            statusLabel.setText("Mining in corso... in ascolto di sfide");
-
-            // Crea il miner reale
-            // Passa un listener che intercetta i log e le deadline
-            miner = new DesktopMinerService(
-                    uri,
-                    chainId,
-                    path,
-                    userKeys,
-                    new DesktopMinerService.MinerListener() {
-                        @Override
-                        public void onConnected() {
-                            Platform.runLater(() -> {
-                                log("Connesso al nodo: " + uri);
-                                statusLabel.setText("Status: Connesso");
-                            });
-                        }
-
-                        @Override
-                        public void onDisconnected() {
-                            Platform.runLater(() -> {
-                                log("Disconnesso dal nodo.");
-                                statusLabel.setText("Status: Disconnesso");
-                                onStopMining(); // Reset interfaccia
-                            });
-                        }
-
-                        @Override
-                        public void onDeadline(int totalDeadlines) {
-                            Platform.runLater(() -> {
-                                log("Nuova deadline trovata! (Totale: " + totalDeadlines + ")");
-                                statusLabel.setText("Status: Mining attivo...");
-                                updateWalletBalance();
-                            });
-                        }
-
-                        public void onMessage(String message) {
-                            Platform.runLater(() -> log("INFO: " + message));
-                        }
-                    }
-            );
-
-            startMiningButton.setDisable(true);
-            stopMiningButton.setDisable(false);
-            statusLabel.setText("Status: Inizializzazione...");
-
-        } catch (Exception e) {
-            log("Errore fatale: " + e.getMessage());
-            statusLabel.setText("Status: Errore");
-            e.printStackTrace();
+        if (minerData == null) {
+            log("Errore: Impossibile avviare, dati del miner (XML) mancanti.");
+            return;
         }
+
+        String uuid = minerData.getUuid();
+
+        // L'avvio carica il plot e apre la connessione di rete: operazioni bloccanti
+        // che NON devono girare sul JavaFX Application Thread. Le spostiamo su un Task.
+        progressBar.setProgress(-1.0);
+        statusLabel.setText("Status: Inizializzazione...");
+        startMiningButton.setDisable(true);
+
+        Task<DesktopMinerService> startTask = new Task<>() {
+            @Override
+            protected DesktopMinerService call() {
+                if (!MinerManager.getInstance().isMinerRunning(uuid)) {
+                    MinerManager.getInstance().startMinerInBackground(minerData, userKeys);
+                }
+                return MinerManager.getInstance().getActiveService(uuid);
+            }
+        };
+
+        startTask.setOnSucceeded(e -> {
+            this.miner = startTask.getValue();
+            if (this.miner != null) {
+                // Avvio esplicito dell'utente: il miner torna "attivo" e ripartirà ai riavvii.
+                MinerXmlManager.setActive(uuid, true);
+                attachListener();
+                stopMiningButton.setDisable(false);
+                statusLabel.setText("Status: Mining attivo in background...");
+                log("Mining avviato e sincronizzato con la centrale operativa!");
+            } else {
+                startMiningButton.setDisable(false);
+                log("Errore: Il Manager non è riuscito a far partire il servizio.");
+                statusLabel.setText("Status: Errore");
+                progressBar.setProgress(0.0);
+            }
+        });
+
+        startTask.setOnFailed(e -> {
+            startMiningButton.setDisable(false);
+            Throwable ex = startTask.getException();
+            log("Errore fatale all'avvio: " + (ex != null ? ex.getMessage() : "Sconosciuto"));
+            statusLabel.setText("Status: Errore");
+            if (ex != null) ex.printStackTrace();
+            progressBar.setProgress(0.0);
+        });
+
+        new Thread(startTask).start();
     }
 
     @FXML
     private void onStopMining() {
-        if (miner != null) {
-            miner.close(); // chiude il WebSocket
-            miner = null;
+        log("Richiesta spegnimento sessione di mining al Manager...");
+
+        if (minerData != null) {
+            String uuid = minerData.getUuid();
+
+            // Diciamo al Manager centrale di fermare il thread in background e rimuoverlo dalla mappa
+            MinerManager.getInstance().stopMiner(uuid);
         }
+
+        // Puliamo il riferimento locale della finestra
+        this.miner = null;
+
+        // Aggiorniamo lo stato della UI
         startMiningButton.setDisable(false);
         stopMiningButton.setDisable(true);
-        log("Mining fermato.");
+        log("Mining fermato sul manager centrale e risorse liberate.");
         progressBar.setProgress(0.0);
         statusLabel.setText("Status: Pronto");
     }
 
-    // Helper per pulire i collegamenti UI
     private void unbindUI() {
         progressBar.progressProperty().unbind();
         statusLabel.textProperty().unbind();
     }
 
-    // Helper per scrivere i log nella TextArea
+    /** Costruisce il listener che instrada gli eventi del miner nella console di QUESTA finestra. */
+    private DesktopMinerService.MinerListener buildUiListener() {
+        return new DesktopMinerService.MinerListener() {
+            @Override public void onConnected() {
+                Platform.runLater(() -> statusLabel.setText("Status: Connesso, mining attivo..."));
+                log("Connesso al nodo: mining in corso.");
+            }
+            @Override public void onDisconnected() {
+                Platform.runLater(() -> statusLabel.setText("Status: Disconnesso, riconnessione automatica..."));
+                log("Connessione persa: tentativo di riconnessione automatica...");
+            }
+            @Override public void onDeadline(int totalDeadlines) {
+                log("Deadline #" + totalDeadlines + " inviata al nodo.");
+            }
+            @Override public void onMessage(String msg) {
+                log(msg);
+            }
+        };
+    }
+
+    /** Aggancia la console al servizio attivo per ricevere i log in tempo reale. */
+    private void attachListener() {
+        if (miner != null) {
+            miner.setListener(buildUiListener());
+            log("Console agganciata al miner: ricezione log attiva.");
+        }
+    }
+
+    /** Chiamato alla chiusura della finestra console: sgancia il listener dal servizio. */
+    public void onWindowClosed() {
+        if (miner != null) {
+            miner.setListener(null);
+        }
+    }
+
+    @FXML
+    private void handleRefreshBalance() {
+        log("Aggiornamento saldo richiesto...");
+        updateWalletBalance();
+    }
+
     private void log(String message) {
         Platform.runLater(() -> {
             logArea.appendText("[" + java.time.LocalTime.now().withNano(0) + "] " + message + "\n");
@@ -296,14 +408,16 @@ public class MiningController {
 
     private void updatePlotSizeInfo() {
         try {
-            File plotFile = new File(minerService.getPlotPath());
+            String pathStr = (minerData != null) ? minerData.getPlotPath() : minerService.getPlotPath();
+            if (pathStr == null || pathStr.isEmpty()) {
+                plotSizeLabel.setText("File non ancora generato");
+                return;
+            }
+
+            File plotFile = new File(pathStr);
             if (plotFile.exists()) {
                 long fileBytes = plotFile.length();
-
-                // (1 nonce = 262144 bytes)
                 long nonces = fileBytes / 262144;
-
-                // Calcola i MB/GB
                 double fileInMB = (double) fileBytes / (1024 * 1024);
 
                 if (fileInMB >= 1024) {
@@ -320,24 +434,51 @@ public class MiningController {
         }
     }
 
-    // metodo per aggiornare il Balance del Wallet
     private void updateWalletBalance() {
-        // Se il miner non è ancora stato avviato, non possiamo fare richieste di rete
-        if (miner == null || userKeys == null || miningSpecification == null) return;
+        if (userKeys == null || (miningSpecification == null && minerData == null)) return;
 
-        Task<Optional<java.math.BigInteger>> balanceTask = new Task<>() {
+        // Per leggere il saldo "offline" bisogna costruire un servizio sul plot: se il plot
+        // non esiste ancora (miner non plottato) evitiamo la FileNotFoundException e usciamo.
+        if (miner == null) {
+            String currentPlotPath = (minerData != null) ? minerData.getPlotPath()
+                    : (minerService != null ? minerService.getPlotPath() : null);
+            if (currentPlotPath == null || !new File(currentPlotPath).exists()) {
+                balanceLabel.setText("N/D (plot non generato)");
+                return;
+            }
+        }
+
+        Task<Optional<BigInteger>> balanceTask = new Task<>() {
             @Override
-            protected Optional<java.math.BigInteger> call() throws Exception {
-                // Prendiamo l'algoritmo dalle specifiche
-                var signatureAlgo = miningSpecification.getSignatureForBlocks();
-                return miner.getBalance(signatureAlgo, userKeys.getPublic());
+            protected Optional<BigInteger> call() throws Exception {
+                String sigBlocksStr = (miningSpecification != null) ? miningSpecification.getSignatureForBlocks().toString() : minerData.getSignatureForBlocks();
+                var signatureAlgo = io.hotmoka.crypto.SignatureAlgorithms.of(sigBlocksStr);
+
+                String nodeUri = (minerData != null) ? minerData.getNodeUri() : minerService.getNodeUri();
+                String chainId = (minerData != null) ? minerData.getChainId() : minerService.getChainID();
+                String plotPath = (minerData != null) ? minerData.getPlotPath() : minerService.getPlotPath();
+
+                if (miner != null) {
+                    return miner.getBalance(signatureAlgo, userKeys.getPublic());
+                } else {
+                    try (DesktopMinerService tempService = new DesktopMinerService(
+                            URI.create(nodeUri), chainId,
+                            Path.of(plotPath), userKeys, new DesktopMinerService.MinerListener() {
+                        @Override public void onConnected() {}
+                        @Override public void onDisconnected() {}
+                        @Override public void onDeadline(int totalDeadlines) {}
+                        @Override public void onMessage(String message) {}
+                    })) {
+                        return tempService.getBalance(signatureAlgo, userKeys.getPublic());
+                    }
+                }
             }
         };
 
         balanceTask.setOnSucceeded(e -> {
-            Optional<java.math.BigInteger> balanceOpt = balanceTask.getValue();
+            Optional<BigInteger> balanceOpt = balanceTask.getValue();
             if (balanceOpt.isPresent()) {
-                java.math.BigInteger rawBalance = balanceOpt.get();
+                BigInteger rawBalance = balanceOpt.get();
                 Platform.runLater(() -> balanceLabel.setText(rawBalance + " MOK"));
             } else {
                 Platform.runLater(() -> balanceLabel.setText("0 MOK (Nuovo Account)"));

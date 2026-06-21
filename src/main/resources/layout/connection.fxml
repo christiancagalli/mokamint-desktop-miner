@@ -40,11 +40,8 @@
     </VBox>
 
     <VBox spacing="10" maxWidth="460">
-        <Label text="Percorso File Plot (.plot):" styleClass="label-standard"/>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <TextField fx:id="plotPathField" HBox.hgrow="ALWAYS" promptText="Seleziona o trascina il file..."/>
-            <Button text="Sfoglia" onAction="#handleBrowsePlot" styleClass="button-secondary"/>
-        </HBox>
+        <Label text="Nome Identificativo Miner:" styleClass="label-standard"/>
+        <TextField fx:id="minerNameField" promptText="Es. Miner Casa, Lipari Nodo 1..."/>
     </VBox>
 
     <Region minHeight="25" prefHeight="25" maxHeight="25" />

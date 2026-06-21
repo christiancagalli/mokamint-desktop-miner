@@ -2,6 +2,7 @@ package it.univr.mokamintminer.gui;
 
 import io.mokamint.miner.api.MiningSpecification;
 import io.mokamint.miner.service.MinerServices;
+import it.univr.mokamintminer.services.MinerInstance;
 import it.univr.mokamintminer.utils.MinerPrefsManager;
 import javafx.animation.PauseTransition;
 import javafx.concurrent.Task;
@@ -10,22 +11,21 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.UUID;
 
 public class ConnectionController {
     @FXML private ComboBox<String> uriComboBox;
-    @FXML private TextField plotPathField;
+    @FXML private TextField minerNameField;
     @FXML private Label errorLabel;
 
     @FXML
     public void initialize() {
-        // Carica gli URI visitati nella ComboBox
+        // Carica gli URI visitati nella ComboBox dalle preferenze locali
         uriComboBox.getItems().addAll(MinerPrefsManager.getVisitedUris());
         if (!uriComboBox.getItems().isEmpty()) {
             uriComboBox.getSelectionModel().selectFirst();
@@ -36,22 +36,9 @@ public class ConnectionController {
     private void handleRemoveUri() {
         String selectedUri = uriComboBox.getSelectionModel().getSelectedItem();
         if (selectedUri != null && !selectedUri.isEmpty()) {
-            MinerPrefsManager.removeUri(selectedUri);   // 1. Rimuovi dalle preferenze
-            uriComboBox.getItems().remove(selectedUri); // 2. Rimuovi dalla ComboBox graficamente
+            MinerPrefsManager.removeUri(selectedUri);
+            uriComboBox.getItems().remove(selectedUri);
             uriComboBox.getSelectionModel().clearSelection();
-        }
-    }
-
-    @FXML
-    private void handleBrowsePlot() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setInitialFileName("plotfile.plot");
-        fileChooser.setTitle("Seleziona o crea il File di Plot");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Plot Files", "*.plot"));
-        fileChooser.setInitialDirectory(new File(System.getProperty("user.home")));
-        File selectedFile = fileChooser.showSaveDialog(uriComboBox.getScene().getWindow());
-        if (selectedFile != null) {
-            plotPathField.setText(selectedFile.getAbsolutePath());
         }
     }
 
@@ -73,67 +60,99 @@ public class ConnectionController {
 
     @FXML
     private void handleConnect() {
-        String uri = uriComboBox.getEditor().getText(); // Prende sia scelta che testo libero
-        String path = plotPathField.getText();
+        String uri = uriComboBox.getEditor().getText().trim();
+        String minerName = minerNameField.getText().trim();
 
-        if (uri.isEmpty() || path.isEmpty()) {
-            showErrorMessage("Errore: Campi vuoti!");
+        if (uri.isEmpty() || minerName.isEmpty()) {
+            showErrorMessage("Errore: Inserisci sia l'URI del nodo che il nome del Miner!");
             return;
         }
 
-        showStatusMessage("Connessione a " + uri + "in corso ...");
+        showStatusMessage("Connessione a " + uri + " in corso...");
 
-        // Creo un Task in background per non bloccare la GUI durante la connessione di rete
+        // Task in background per non congelare l'interfaccia utente durante la chiamata di rete
         Task<MiningSpecification> connectionTask = new Task<>() {
             @Override
             protected MiningSpecification call() throws Exception {
                 URI serverUri = new URI(uri);
-                // Apro il servizio
                 try (var service = MinerServices.of(serverUri, 10000)) {
-                    // Chiedo le informazioni al server e le restituisco
                     return service.getMiningSpecification();
                 }
             }
         };
 
-        // se la connessione ha successo
+        // Se la connessione al nodo ha successo e risponde correttamente
         connectionTask.setOnSucceeded(event -> {
             MiningSpecification specification = connectionTask.getValue();
             System.out.println("Specifiche ricevute con successo dal server!");
 
-            MinerPrefsManager.saveUri(uri); // Salva l'URI solo se valido e connesso
-            switchToLoginScene(uri, path, specification);
+            MinerPrefsManager.saveUri(uri); // Memorizza l'URI tra quelli frequentati
+
+            // Genero l'UUID univoco
+            String generatedUuid = UUID.randomUUID().toString();
+
+            // Creo l'oggetto temporaneo
+            MinerInstance temporaryMiner = new MinerInstance(generatedUuid, minerName, uri);
+
+            // Estraggo i dati inviati dalla blockchain per l'XML
+            temporaryMiner.setMiningSpecification(specification);
+            temporaryMiner.setChainId(specification.getChainId());
+            temporaryMiner.setHashingForDeadlines(specification.getHashingForDeadlines().toString());
+            temporaryMiner.setSignatureForBlocks(specification.getSignatureForBlocks().toString());
+            temporaryMiner.setSignatureForDeadlines(specification.getSignatureForDeadlines().toString());
+
+            // La chiave pubblica per la firma dei BLOCCHI appartiene al NODO (non al miner):
+            // va salvata dalla spec e inserita nel prolog del plot, altrimenti il nodo
+            // rifiuta le deadline con "Wrong node key in deadline".
+            try {
+                var sigBlocks = specification.getSignatureForBlocks();
+                temporaryMiner.setPublicKeyBlocksBase58(
+                        io.hotmoka.crypto.Base58.toBase58String(
+                                sigBlocks.encodingOf(specification.getPublicKeyForSigningBlocks())));
+            } catch (java.security.InvalidKeyException ex) {
+                showErrorMessage("Chiave del nodo non valida: " + ex.getMessage());
+                return;
+            }
+
+            switchToLoginScene(temporaryMiner);
         });
 
-        // se la connessione fallisce (es: server spento, URI errato)
+        // Se la connessione fallisce (es. IP errato o server Mokamint offline)
         connectionTask.setOnFailed(event -> {
             Throwable exception = connectionTask.getException();
-            showErrorMessage("Connessione fallita: " + exception.getMessage());
-            System.err.println("Errore connessione: " + exception.getMessage());
+            // Stampa completa per diagnosi (causa radice: nodo offline vs problema client)
+            System.err.println("[CONNECTION] Connessione a " + uri + " fallita:");
+            if (exception != null) {
+                exception.printStackTrace();
+                Throwable root = exception;
+                while (root.getCause() != null) root = root.getCause();
+                showErrorMessage("Connessione fallita: " + root.getClass().getSimpleName()
+                        + " - " + root.getMessage());
+            } else {
+                showErrorMessage("Connessione fallita (causa sconosciuta).");
+            }
         });
-        // Avvia il thread in background
+
         new Thread(connectionTask).start();
     }
 
-    private void switchToLoginScene(String uri, String path, MiningSpecification specification) {
+    private void switchToLoginScene(MinerInstance temporaryMiner) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/login.fxml"));
             Parent root = loader.load();
 
-            // Ottengo il controller della pagina di login
             LoginController loginController = loader.getController();
 
-            // Passo l'uri del miner
-            loginController.setConnectionData(uri, path, specification);
+            loginController.setTemporaryMiner(temporaryMiner);
 
-            // Cambio effettivo della scena sul desktop
             Stage stage = (Stage) uriComboBox.getScene().getWindow();
-            stage.setScene(new Scene(root));
-            stage.setTitle("Mokamint - Accesso");
+            stage.setScene(new Scene(root, 640, 540));
+            stage.setTitle("Mokamint Multi-Miner - Configurazione Identità");
             stage.centerOnScreen();
             stage.show();
 
         } catch (IOException e) {
+            System.err.println("Errore nel caricamento del LoginController!");
             e.printStackTrace();
         }
     }

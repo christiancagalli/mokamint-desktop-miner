@@ -35,7 +35,10 @@
             <Label fx:id="plotSizeLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="2" styleClass="label-standard"/>
 
             <Label text="Bilancio Wallet:" GridPane.columnIndex="0" GridPane.rowIndex="3" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
-            <Label fx:id="balanceLabel" text="Caricamento..." GridPane.columnIndex="1" GridPane.rowIndex="3" styleClass="label-standard"/>
+            <HBox spacing="10" alignment="CENTER_LEFT" GridPane.columnIndex="1" GridPane.rowIndex="3">
+                <Label fx:id="balanceLabel" text="Caricamento..." styleClass="label-standard"/>
+                <Button fx:id="refreshBalanceButton" text="Aggiorna" onAction="#handleRefreshBalance" styleClass="button-secondary"/>
+            </HBox>
 
             <Label text="Nodo URI:" GridPane.columnIndex="0" GridPane.rowIndex="4" style="-fx-font-weight: bold; -fx-text-fill: #9c64ed;"/>
             <Label fx:id="nodeUrlLabel" text="N/A" GridPane.columnIndex="1" GridPane.rowIndex="4" styleClass="label-standard"/>
