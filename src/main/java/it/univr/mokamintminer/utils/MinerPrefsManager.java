@@ -24,9 +24,9 @@ public class MinerPrefsManager {
 
     public static void removeUri(String uriToRemove) {
         List<String> uris = new ArrayList<>(getVisitedUris());
-        // Rimuoviamo l'URI dalla lista (se presente)
+        // Rimuovo l'URI dalla lista (se presente)
         if (uris.remove(uriToRemove)) {
-            // Salviamo la nuova lista aggiornata
+            // Salvo la nuova lista aggiornata
             if (uris.isEmpty()) {
                 prefs.remove(URIS_KEY);
             } else {

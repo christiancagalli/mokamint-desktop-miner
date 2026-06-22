@@ -14,7 +14,7 @@ public class MinerXmlManager {
     private static final String XML_PATH = "miner_storage/miners.xml";
 
     /**
-     * Carica tutti i miner salvati nel file XML formattato secondo le specifiche del prof.
+     * Carico tutti i miner salvati nel file XML, formattato secondo lo schema del nodo.
      */
     public static List<MinerInstance> loadMiners() {
         List<MinerInstance> miners = new ArrayList<>();
@@ -64,14 +64,14 @@ public class MinerXmlManager {
                         pubKeyBlocks = getTagValue("public-key-for-signing-blocks-base58", specElement);
                     }
 
-                    // Costruiamo l'istanza basandoci sui dati recuperati
+                    // Costruisco l'istanza dai dati recuperati
                     MinerInstance miner = new MinerInstance(uuid, name, uri);
 
-                    // Mappiamo i percorsi locali derivati dall'UUID centralizzato
+                    // Mappo i percorsi locali derivandoli dall'UUID
                     miner.setPlotPath("miner_storage/data/" + uuid + ".plot");
                     miner.setPemPath("miner_storage/identities/" + uuid + ".pem");
 
-                    // Sincronizziamo il resto dei parametri
+                    // Sincronizzo il resto dei parametri
                     miner.setChainId(chainId);
                     miner.setHashingForDeadlines(hashingForDeadlines);
                     miner.setSignatureForBlocks(sigBlocks);
@@ -91,7 +91,7 @@ public class MinerXmlManager {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Errore durante il parsing dell'XML del prof: " + e.getMessage());
+            System.err.println("Errore durante il parsing del file XML dei miner: " + e.getMessage());
             e.printStackTrace();
         }
 
@@ -99,7 +99,7 @@ public class MinerXmlManager {
     }
 
     /**
-     * Scrive i miner rispecchiando fedelmente l'albero XML del prof.
+     * Scrivo i miner rispecchiando l'albero XML usato dal nodo.
      */
     public static void saveMiners(List<MinerInstance> miners) {
         try {
@@ -138,7 +138,7 @@ public class MinerXmlManager {
                 // Altri tag di primo livello del miner
                 addChildElement(document, minerElement, "uri", miner.getNodeUri());
 
-                // Ricaviamo la dimensione reale del file plot sul disco
+                // Ricavo la dimensione reale del file di plot sul disco
                 long size = 0;
                 File pFile = new File(miner.getPlotPath() != null ? miner.getPlotPath() : "");
                 if (pFile.exists()) {
@@ -161,8 +161,6 @@ public class MinerXmlManager {
             DOMSource source = new DOMSource(document);
             StreamResult result = new StreamResult(file);
             transformer.transform(source, result);
-
-            System.out.println("XML salvato in formato compatibile con il server del prof!");
 
         } catch (Exception e) {
             e.printStackTrace();

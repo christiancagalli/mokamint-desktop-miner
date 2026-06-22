@@ -84,9 +84,8 @@ public class ConnectionController {
         // Se la connessione al nodo ha successo e risponde correttamente
         connectionTask.setOnSucceeded(event -> {
             MiningSpecification specification = connectionTask.getValue();
-            System.out.println("Specifiche ricevute con successo dal server!");
 
-            MinerPrefsManager.saveUri(uri); // Memorizza l'URI tra quelli frequentati
+            MinerPrefsManager.saveUri(uri); // Memorizzo l'URI tra quelli visitati
 
             // Genero l'UUID univoco
             String generatedUuid = UUID.randomUUID().toString();

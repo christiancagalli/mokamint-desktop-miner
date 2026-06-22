@@ -18,11 +18,6 @@ public class MinerService {
         this.plotPath = path;
         this.signatureAlgorithm = signatureAlg;
         this.chainID = chainID;
-
-        System.out.println("MinerService configurato correttamente:");
-        System.out.println(" - URI: " + nodeUri);
-        System.out.println(" - Algoritmo: " + signatureAlgorithm.getName());
-        System.out.println(" - ChainID: " + chainID);
     }
 
     public SignatureAlgorithm getSignatureAlgorithm() { return signatureAlgorithm; }
@@ -37,7 +32,7 @@ public class MinerService {
     public String generateNewMnemonic() {
         Entropy entropy = Entropies.random();              //genero l'entropia
         byte[] bytes = entropy.getEntropyAsBytes();
-        BIP39Mnemonic mnemonicObject = BIP39Mnemonics.of(bytes);     // uniamo le parole con uno spazio
+        BIP39Mnemonic mnemonicObject = BIP39Mnemonics.of(bytes);     // unisco le parole con uno spazio
         return mnemonicObject.stream().collect(java.util.stream.Collectors.joining(" "));   //genera un flusso di parole e poi le cattura e le separa con uno spazio
     }
 

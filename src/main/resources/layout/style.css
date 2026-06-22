@@ -167,6 +167,16 @@
     -fx-background-color: #2a2b2f;
 }
 
+/* Rimuovo il contorno azzurro di focus sulla console dei log */
+.text-area:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+}
+.text-area:focused .content {
+    -fx-background-color: #2a2b2f;
+}
+
 .progress-bar .track {
     -fx-background-color: #36393f;
     -fx-background-radius: 8px;
@@ -278,4 +288,57 @@
 .button-dialog-copy:disabled {
     -fx-opacity: 0.6;
     -fx-text-fill: #b992f3;
+}
+
+/* Testo e pulsanti generici dentro i dialoghi (popup di conferma/errore) */
+.dialog-pane .content,
+.dialog-pane .content .label {
+    -fx-text-fill: #dcddde;
+}
+.dialog-pane .button-bar .button {
+    -fx-background-color: #40444b;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 6px;
+    -fx-border-color: #4f545c;
+    -fx-border-radius: 6px;
+    -fx-padding: 8 16;
+    -fx-cursor: hand;
+}
+.dialog-pane .button-bar .button:hover {
+    -fx-background-color: #4f545c;
+    -fx-border-color: #9c64ed;
+}
+
+/* ==========================================================================
+                7. LISTA DEI MINER (Home)
+   ========================================================================== */
+
+/* La ListView deve essere trasparente: lo sfondo lo danno le singole card */
+.list-view {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.list-view:focused {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+.list-view .virtual-flow,
+.list-view .virtual-flow .clipped-container,
+.list-view .virtual-flow .clipped-container .sheet {
+    -fx-background-color: transparent;
+}
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 2 6 2;
+}
+/* Niente evidenziazione azzurra al clic/hover: la card resta del suo colore */
+.list-view .list-cell:filled:selected,
+.list-view .list-cell:filled:selected:focused,
+.list-view .list-cell:filled:focused,
+.list-view .list-cell:filled:hover {
+    -fx-background-color: transparent;
+    -fx-text-fill: inherit;
 }

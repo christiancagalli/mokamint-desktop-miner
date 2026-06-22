@@ -86,7 +86,7 @@ public class DesktopMinerService extends AbstractReconnectingMinerService {
         }
     }
 
-    // NB: isConnected() NON va sovrascritto: ereditiamo quello della libreria, che
+    // NB: isConnected() NON va sovrascritto: eredito quello della libreria, che
     // legge lo stato reale della connessione (l'AtomicBoolean del reconnector).
 
     public DesktopMinerService(URI endpoint, String chainId, Path plotPath, KeyPair keys, MinerListener listener) throws Exception {

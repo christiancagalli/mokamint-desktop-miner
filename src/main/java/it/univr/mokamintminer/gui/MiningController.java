@@ -57,8 +57,6 @@ public class MiningController {
         this.miningSpecification = specification;
         this.minerData = minerInstance;
 
-        System.out.println("chiavi nel mining controller: " + userKeys.getPublic());
-
         // 1. Chiave pubblica in formato base58 (lo stesso usato dal nodo), più leggibile dell'hex
         try {
             String pubBase58;
@@ -100,23 +98,25 @@ public class MiningController {
         // 4. Aggiornamento degli elementi grafici e bottoni
         updatePlotSizeInfo();
 
-        // Lasciamo che controlli prima lo stato fisico del file plot su disco
+        // Controllo prima lo stato fisico del file di plot su disco
         updateButtonsState();
 
-        // SINK DEL MANAGER: Controlliamo se il manager lo sta già facendo girare in background
+        // Verifico se il manager sta già facendo girare questo miner in background
         if (minerInstance != null) {
             boolean running = MinerManager.getInstance().isMinerRunning(minerInstance.getUuid());
 
             if (running) {
-                // Se sta già girando, agganciamo il riferimento al servizio core
+                // Se sta già girando, aggancio il riferimento al servizio core
                 this.miner = MinerManager.getInstance().getActiveService(minerInstance.getUuid());
 
-                // Instradiamo i log del miner nella console di QUESTA finestra
+                // Instrado i log del miner nella console di QUESTA finestra
                 attachListener();
 
-                // Aggiorniamo la UI di conseguenza: Start spento, Stop acceso
+                // Aggiorno la UI di conseguenza: Start spento, Stop acceso, barra in
+                // modalità indeterminata (l'animazione "rimbalzante" che indica mining attivo).
                 startMiningButton.setDisable(true);
                 stopMiningButton.setDisable(false);
+                progressBar.setProgress(-1.0);
                 statusLabel.setText("Status: Mining attivo in background...");
                 log("Sincronizzato con il processo in background attivo.");
             }
@@ -248,7 +248,6 @@ public class MiningController {
             }
         };
 
-        System.out.println("AVVIO PLOTTING UFFICIALE CON LA CHIAVE: " + MinerService.bytesToHex(this.userKeys.getPublic().getEncoded()));
         progressBar.progressProperty().bind(plotTask.progressProperty());
         statusLabel.textProperty().bind(plotTask.messageProperty());
 
@@ -296,7 +295,7 @@ public class MiningController {
         String uuid = minerData.getUuid();
 
         // L'avvio carica il plot e apre la connessione di rete: operazioni bloccanti
-        // che NON devono girare sul JavaFX Application Thread. Le spostiamo su un Task.
+        // che NON devono girare sul JavaFX Application Thread: le sposto su un Task.
         progressBar.setProgress(-1.0);
         statusLabel.setText("Status: Inizializzazione...");
         startMiningButton.setDisable(true);
@@ -347,14 +346,14 @@ public class MiningController {
         if (minerData != null) {
             String uuid = minerData.getUuid();
 
-            // Diciamo al Manager centrale di fermare il thread in background e rimuoverlo dalla mappa
+            // Chiedo al Manager di fermare il thread in background e rimuoverlo dalla mappa
             MinerManager.getInstance().stopMiner(uuid);
         }
 
-        // Puliamo il riferimento locale della finestra
+        // Pulisco il riferimento locale della finestra
         this.miner = null;
 
-        // Aggiorniamo lo stato della UI
+        // Aggiorno lo stato della UI
         startMiningButton.setDisable(false);
         stopMiningButton.setDisable(true);
         log("Mining fermato sul manager centrale e risorse liberate.");
@@ -445,7 +444,7 @@ public class MiningController {
         if (userKeys == null || (miningSpecification == null && minerData == null)) return;
 
         // Per leggere il saldo "offline" bisogna costruire un servizio sul plot: se il plot
-        // non esiste ancora (miner non plottato) evitiamo la FileNotFoundException e usciamo.
+        // non esiste ancora (miner non plottato) evito la FileNotFoundException ed esco.
         if (miner == null) {
             String currentPlotPath = (minerData != null) ? minerData.getPlotPath()
                     : (minerService != null ? minerService.getPlotPath() : null);
@@ -495,7 +494,7 @@ public class MiningController {
                 balanceLabel.setText("0 MOK (Nuovo Account)");
                 log("Saldo aggiornato: 0 MOK (nuovo account).");
             }
-            // Aggiorniamo la cache così le riaperture della console non richiamano il nodo.
+            // Aggiorno la cache così le riaperture della console non richiamano il nodo.
             if (minerData != null) {
                 MinerManager.getInstance().setCachedBalance(minerData.getUuid(), value);
             }

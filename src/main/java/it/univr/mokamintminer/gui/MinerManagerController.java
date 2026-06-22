@@ -7,6 +7,7 @@ import it.univr.mokamintminer.services.MinerInstance;
 import it.univr.mokamintminer.services.MinerManager;
 import it.univr.mokamintminer.services.MinerService;
 import it.univr.mokamintminer.services.MinerXmlManager;
+import it.univr.mokamintminer.utils.DialogUtils;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -49,10 +50,10 @@ public class MinerManagerController {
 
     @FXML
     public void initialize() {
-        // 1. Colleghiamo la lista dei dati alla ListView grafica
+        // 1. Collego la lista dei dati alla ListView grafica
         minerListView.setItems(minersList);
 
-        // 2. Configuriamo la Cell Factory per iniettare la grafica personalizzata
+        // 2. Configuro la Cell Factory per disegnare la grafica personalizzata di ogni card
         minerListView.setCellFactory(param -> new ListCell<>() {
             @Override
             protected void updateItem(MinerInstance miner, boolean empty) {
@@ -73,7 +74,7 @@ public class MinerManagerController {
                     boolean connected = MinerManager.getInstance().isMinerConnected(miner.getUuid());
                     File plotFile = new File(miner.getPlotPath() != null ? miner.getPlotPath() : "");
                     if (running && connected) {
-                        led.setFill(Color.web("#2ec4b6")); // Verde  -> connesso e in mining
+                        led.setFill(Color.web("#2ecc71")); // Verde  -> connesso e in mining
                     } else if (running) {
                         led.setFill(Color.web("#e71d36")); // Rosso  -> attivo ma disconnesso (rete giù / errore)
                     } else if (plotFile.exists()) {
@@ -115,15 +116,15 @@ public class MinerManagerController {
             }
 
         });
-        // 3. Carichiamo i veri miner salvati nell'XML all'avvio dell'applicazione
+        // 3. Carico i miner salvati nell'XML all'avvio dell'applicazione
         loadMinersFromXML();
 
         // 4. Avvio automatico in background di tutti i miner con plot pronto.
-        //    Gira su un thread dedicato; al termine aggiorniamo i LED delle card.
+        //    Gira su un thread dedicato; al termine aggiorno i LED delle card.
         MinerManager.getInstance().autoStartAllMiners(
                 () -> Platform.runLater(minerListView::refresh));
 
-        // 5. Aggiornamento dei LED senza sfarfallio: ridisegniamo le card SOLO quando
+        // 5. Aggiornamento dei LED senza sfarfallio: ridisegno le card SOLO quando
         //    lo stato di almeno un miner cambia davvero (connesso/disconnesso/plot),
         //    non a ogni tick.
         ledRefresher = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
@@ -158,10 +159,8 @@ public class MinerManagerController {
     private void loadMinersFromXML() {
         try {
             minersList.clear();
-            // Sostituito getMiners() con il tuo loadMiners() reale
             List<MinerInstance> savedMiners = MinerXmlManager.loadMiners();
             minersList.addAll(savedMiners);
-            System.out.println("XML caricato con successo. Trovati " + savedMiners.size() + " miner.");
         } catch (Exception e) {
             System.err.println("Errore nel caricamento del file XML: " + e.getMessage());
         }
@@ -195,15 +194,15 @@ public class MinerManagerController {
         dialog.setTitle("Rinomina Miner");
         dialog.setHeaderText("Cambia il nome per identificare questo miner:");
         dialog.setContentText("Nuovo Nome:");
+        DialogUtils.applyDarkStyle(dialog);
 
         dialog.showAndWait().ifPresent(newName -> {
             if (!newName.isBlank()) {
                 try {
                     miner.setName(newName.trim());
-                    // Aggiorna l'XML richiamando l'addMiner che si occupa della sovrascrittura/aggiornamento
+                    // Aggiorno l'XML: addMiner sovrascrive la voce esistente con lo stesso UUID
                     MinerXmlManager.addMiner(miner);
                     minerListView.refresh();
-                    System.out.println("Nome modificato con successo nell'XML.");
                 } catch (Exception ex) {
                     System.err.println("Errore durante l'aggiornamento del nome nel file XML: " + ex.getMessage());
                 }
@@ -212,10 +211,8 @@ public class MinerManagerController {
     }
 
     private void handleOpenMinerConsole(MinerInstance miner) {
-        System.out.println("Apertura dashboard di mining per l'UUID: " + miner.getUuid());
-
         try {
-            // 1. Ricostruiamo i percorsi locali standard legandoli all'UUID del miner
+            // 1. Ricostruisco i percorsi locali derivandoli dall'UUID del miner
             if (miner.getPlotPath() == null || miner.getPlotPath().isBlank()) {
                 miner.setPlotPath("miner_storage/data/" + miner.getUuid() + ".plot");
             }
@@ -223,42 +220,37 @@ public class MinerManagerController {
                 miner.setPemPath("miner_storage/identities/" + miner.getUuid() + ".pem");
             }
 
-            // 2. Carichiamo l'identità crittografica dal file .pem
+            // 2. Carico l'identità crittografica dal file .pem
             Path correctPemPath = Paths.get(miner.getPemPath());
             var entropy = Entropies.load(correctPemPath);
 
-            // 3. Recuperiamo l'algoritmo di firma letto in precedenza dall'XML
+            // 3. Recupero l'algoritmo di firma letto in precedenza dall'XML
             String sigForDeadlinesStr = miner.getSignatureForDeadlines();
             var signatureForDeadlines = io.hotmoka.crypto.SignatureAlgorithms.of(sigForDeadlinesStr);
 
-            // 4. Rigeneriamo la KeyPair in memoria e passiamola al modello
+            // 4. Rigenero la KeyPair in memoria e la passo al modello
             KeyPair userKeys = entropy.keys("", signatureForDeadlines);
             miner.setKeyPair(userKeys);
 
-            // 5. Creiamo il wrapper di servizio finto
+            // 5. Creo il wrapper di servizio
             MinerService serviceWrapper = new MinerService();
 
-            // 6. Carichiamo l'interfaccia grafica del terminale di mining
+            // 6. Carico l'interfaccia grafica del terminale di mining
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/mining.fxml"));
             Parent root = loader.load();
 
-            // Passiamo i parametri configurati: adesso miner ha i percorsi validi!
+            // Passo i parametri configurati: ora il miner ha i percorsi validi
             MiningController miningController = loader.getController();
             miningController.setMiningData(serviceWrapper, userKeys, null, miner);
 
-            // 7. Visualizziamo la finestra della console
+            // 7. Mostro la finestra della console
             Stage consoleStage = new Stage();
             consoleStage.setTitle("Console di Mining - " + miner.getName());
 
-            // Stessa identica modalità delle finestre che funzionano (principale, wizard):
-            // dimensione ESPLICITA nel costruttore della Scene + owner, SENZA
-            // setWidth/setHeight/centerOnScreen (che su questo window manager non vengono
-            // rispettati sulle finestre secondarie).
-            // Stesso identico schema di connessione/login (che funzionano): su questo window
-            // manager la dimensione della finestra coincide col minimo, quindi impostiamo
-            // minimo = dimensione voluta. La console si apre a 1200x780, è ingrandibile e
-            // (come tutte le altre finestre) non riducibile sotto tale soglia.
-            // NIENTE initOwner: altrimenti la console resterebbe sempre davanti alla principale.
+            // Su questo window manager la dimensione di una finestra secondaria coincide
+            // con il suo minimo, quindi imposto il minimo alla dimensione voluta: la console
+            // si apre a 1200x780, è ingrandibile e (come le altre finestre) non riducibile
+            // sotto tale soglia. Niente initOwner, altrimenti resterebbe sempre in primo piano.
             consoleStage.setScene(new Scene(root, 1200, 780));
             consoleStage.setMinWidth(1200);
             consoleStage.setMinHeight(780);
@@ -274,6 +266,7 @@ public class MinerManagerController {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Errore");
             alert.setContentText("Impossibile aprire la console: " + e.getMessage());
+            DialogUtils.applyDarkStyle(alert);
             alert.showAndWait();
         }
     }
@@ -283,6 +276,7 @@ public class MinerManagerController {
         alert.setTitle("Elimina Miner");
         alert.setHeaderText("Stai per rimuovere il miner: " + miner.getName());
         alert.setContentText("Il file di plot (.plot) verrà rimosso per liberare spazio. Vuoi conservare il file delle chiavi (.pem) per i tuoi fondi?");
+        DialogUtils.applyDarkStyle(alert);
 
         ButtonType yesKeepPem = new ButtonType("Conserva Identità (.pem)");
         ButtonType deleteAll = new ButtonType("Elimina Tutto");
@@ -293,28 +287,21 @@ public class MinerManagerController {
         alert.showAndWait().ifPresent(type -> {
             try {
                 if (type == yesKeepPem) {
-                    System.out.println("Elimino plot ed XML, ma salvo il .pem per l'UUID: " + miner.getUuid());
-
-                    // Eliminiamo fisicamente il file di plot se esiste
+                    // Elimino plot e voce XML, ma conservo il .pem (contiene i fondi)
                     File plotFile = new File(miner.getPlotPath());
                     if (plotFile.exists()) plotFile.delete();
 
-                    // Rimuoviamo il miner dall'XML
                     MinerXmlManager.removeMiner(miner.getUuid());
                     minersList.remove(miner);
 
                 } else if (type == deleteAll) {
-                    System.out.println("Rado al suolo file e identità per l'UUID: " + miner.getUuid());
-
-                    // Eliminiamo il file di plot
+                    // Elimino plot, identità .pem e voce XML
                     File plotFile = new File(miner.getPlotPath());
                     if (plotFile.exists()) plotFile.delete();
 
-                    // Eliminiamo il file PEM dell'identità
                     File pemFile = new File(miner.getPemPath());
                     if (pemFile.exists()) pemFile.delete();
 
-                    // Rimuoviamo il miner dall'XML
                     MinerXmlManager.removeMiner(miner.getUuid());
                     minersList.remove(miner);
                 }
