@@ -100,10 +100,6 @@ public class MiningController {
         // 4. Aggiornamento degli elementi grafici e bottoni
         updatePlotSizeInfo();
 
-        if (miningSpecification != null || (minerInstance != null && minerInstance.getNodeUri() != null)) {
-            updateWalletBalance();
-        }
-
         // Lasciamo che controlli prima lo stato fisico del file plot su disco
         updateButtonsState();
 
@@ -123,6 +119,18 @@ public class MiningController {
                 stopMiningButton.setDisable(false);
                 statusLabel.setText("Status: Mining attivo in background...");
                 log("Sincronizzato con il processo in background attivo.");
+            }
+        }
+
+        // 5. Saldo: una SOLA chiamata automatica la prima volta (dopo l'aggancio, percorso
+        //    veloce); riaprire la console mostra il valore in cache senza richiamare il nodo.
+        //    Gli aggiornamenti successivi avvengono solo con "Aggiorna".
+        if (minerInstance != null) {
+            BigInteger cached = MinerManager.getInstance().getCachedBalance(minerInstance.getUuid());
+            if (cached != null) {
+                balanceLabel.setText(cached + " MOK");
+            } else if (miningSpecification != null || minerInstance.getNodeUri() != null) {
+                updateWalletBalance();
             }
         }
     }
@@ -396,7 +404,6 @@ public class MiningController {
 
     @FXML
     private void handleRefreshBalance() {
-        log("Aggiornamento saldo richiesto...");
         updateWalletBalance();
     }
 
@@ -448,6 +455,9 @@ public class MiningController {
             }
         }
 
+        log("Aggiornamento saldo in corso...");
+        balanceLabel.setText("Aggiornamento...");
+
         Task<Optional<BigInteger>> balanceTask = new Task<>() {
             @Override
             protected Optional<BigInteger> call() throws Exception {
@@ -477,17 +487,25 @@ public class MiningController {
 
         balanceTask.setOnSucceeded(e -> {
             Optional<BigInteger> balanceOpt = balanceTask.getValue();
+            BigInteger value = balanceOpt.orElse(BigInteger.ZERO);
             if (balanceOpt.isPresent()) {
-                BigInteger rawBalance = balanceOpt.get();
-                Platform.runLater(() -> balanceLabel.setText(rawBalance + " MOK"));
+                balanceLabel.setText(value + " MOK");
+                log("Saldo aggiornato: " + value + " MOK");
             } else {
-                Platform.runLater(() -> balanceLabel.setText("0 MOK (Nuovo Account)"));
+                balanceLabel.setText("0 MOK (Nuovo Account)");
+                log("Saldo aggiornato: 0 MOK (nuovo account).");
+            }
+            // Aggiorniamo la cache così le riaperture della console non richiamano il nodo.
+            if (minerData != null) {
+                MinerManager.getInstance().setCachedBalance(minerData.getUuid(), value);
             }
         });
 
         balanceTask.setOnFailed(e -> {
-            Platform.runLater(() -> balanceLabel.setText("Errore bilancio"));
-            balanceTask.getException().printStackTrace();
+            balanceLabel.setText("Errore bilancio");
+            Throwable ex = balanceTask.getException();
+            log("Errore durante l'aggiornamento del saldo: " + (ex != null ? ex.getMessage() : "sconosciuto"));
+            if (ex != null) ex.printStackTrace();
         });
 
         new Thread(balanceTask).start();

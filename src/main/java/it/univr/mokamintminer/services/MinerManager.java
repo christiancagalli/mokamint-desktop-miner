@@ -2,6 +2,7 @@ package it.univr.mokamintminer.services;
 
 import it.univr.mokamintminer.core.DesktopMinerService;
 import java.io.File;
+import java.math.BigInteger;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +16,8 @@ public class MinerManager {
     private static MinerManager instance;
     // Mappa che tiene in memoria i processi di mining attivi in background contemporaneamente
     private final Map<String, DesktopMinerService> activeMiners = new ConcurrentHashMap<>();
+    // Ultimo saldo noto per miner: evita di richiamare il nodo a ogni apertura della console.
+    private final Map<String, BigInteger> lastBalances = new ConcurrentHashMap<>();
 
     private MinerManager() {}
 
@@ -158,6 +161,15 @@ public class MinerManager {
 
     public DesktopMinerService getActiveService(String uuid) {
         return activeMiners.get(uuid);
+    }
+
+    /** Ultimo saldo letto per questo miner (null se non è mai stato interrogato). */
+    public BigInteger getCachedBalance(String uuid) {
+        return lastBalances.get(uuid);
+    }
+
+    public void setCachedBalance(String uuid, BigInteger balance) {
+        if (balance != null) lastBalances.put(uuid, balance);
     }
 
     /**
