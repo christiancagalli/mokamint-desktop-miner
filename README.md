@@ -1,123 +1,133 @@
 # Mokamint Desktop Miner
 
-A desktop application for the Mokamint blockchain that implements plot file creation, secure credential management, and mining activity monitor with a modern graphical interface.
+A JavaFX desktop application for mining on the **Mokamint** blockchain. It replaces the textual feedback of the CLI miner with a visual dashboard that manages multiple cryptographic identities, generates plot files, and runs several live mining sessions in parallel against remote Mokamint nodes.
 
-The project was developed as part of a university thesis at the University of Verona, with the goal of replacing the textual feedback of the existing CLI miner with a secure, responsive, and visual JavaFX dashboard built on top of the official Mokamint APIs.
+Developed as a University of Verona thesis project, built on top of the official `io.mokamint` / `io.hotmoka` APIs.
+
+> **Java 21 · Maven.** Code, comments, log output and UI strings are in Italian.
+
+---
 
 ## Features
 
-- **Dynamic Identity Management:** Flexible authentication system featuring three distinct cryptographic pipelines, deeply integrated with the remote node's specific algorithm via `miningSpecification.getSignatureForDeadlines()`:
-  - **New Identity Generation:** Generates a compliant 12-word recovery phrase (`BIP39`) using `io.hotmoka.crypto`, derives the public/private key pairs dynamically according to the node's required signature algorithm, and securely exports the raw entropy state locally into a `.pem` file via `entropy.dump()`.
-  - **Secure Local Key Storage (.pem):** Standardized file-based login that allows users to re-import a previously generated `.pem` identity file using `Entropies.load()`, reconstructing the active session keys without exposing the raw seed words.
-  - **Mnemonic Phrase Recovery:** Direct seed login via a 12-word text area input, backed by dictionary validation inside `MinerService` to reconstruct credentials on the fly.
-- **Plot File Creation:** Fully deterministic generation of plots utilizing the official `io-mokamint-plotter` algorithms.
-- **Dynamic Plot Size:** Configurable size inputs (number of nonces) directly handled from the UI with real-time feedback on expected file weight (MB/GB).
-- **Asynchronous Mining Monitor:** Real-time logging of challenge-response loops and computed deadlines connected to a live Mokamint node.
-- **Live Wallet Balance:** Background thread execution (`JavaFX Task`) that continuously queries the remote node to fetch and update the wallet balance (`MOK` tokens) safely without freezing the UI.
-- **Modern Dark UI:** Tailored CSS stylesheet featuring a futuristic dark scheme with vibrant lilac accent details.
+- **Multi-miner management:** a home dashboard lists every saved miner as a card with a status LED. Each miner has its own identity, plot and mining session, and they all run at the same time.
+- **Automatic start:** on launch, every miner that has a ready plot and is marked active is started automatically in the background.
+- **Persistent state:** miners are saved to an XML file. A miner stopped explicitly by the user stays stopped across restarts; closing the app does not change that flag.
+- **Per-miner consoles:** each miner opens its own console window with live logs (challenges, computed deadlines, connection status). Closing a console does **not** stop its miner — the session keeps running and the console re-attaches when reopened.
+- **Four-state status LED:** 🟢 connected and mining · 🔴 active but disconnected (network down / error) · 🟡 plot ready but stopped · ⚪ plot still to generate.
+- **Automatic reconnection:** the mining service reconnects on its own when the network drops and comes back, with visual feedback (LED + console messages).
+- **Identity management:** three cryptographic pipelines integrated with the node's signature algorithm — generate a new `BIP39` mnemonic, load an existing `.pem`, or recover from a 12-word phrase.
+- **Deterministic plot creation:** plots are generated with the official `io-mokamint-plotter` APIs, bound to the user's public key and to the node's block-signing key.
+- **On-demand wallet balance:** the balance is queried once when a console is first opened and then only on explicit request, with a per-miner cache to avoid repeated calls to the node.
+- **Dark themed UI:** a custom CSS stylesheet with a dark scheme and lilac accents, applied consistently to windows and dialogs.
 
 ---
 
-## Application Architecture & Lifecycle
+## Architecture
 
-The application follows a strict multi-stage **Model-View-Controller (MVC)** pattern. Data is safely passed down through sequential controllers, ensuring that the application state is dynamically built and verified based on the remote node's specific network properties.
+The application follows a multi-stage **Model-View-Controller (MVC)** pattern. The single join key across all persisted data is the miner's **UUID**, which maps the XML entry, the `.pem` identity and the `.plot` binary.
 
-### 1. The Gateway: Main & ConnectionController
-The execution starts from `Main.java`. The initial user interface presents the user with the connection and routing panel:
-- **Node & Path Setup:** The user inputs the target remote node URI and defines the local directory path for the plot binary.
-- **History Management:** Features a built-in persistence system to manage previously visited URIs, allowing the user to seamlessly select or clear cached endpoints from the UI.
-- **Node Handshake:** Before unlocking the identity phase, the controller communicates with the remote node to fetch and download its official `MiningSpecifications`.
-- **Data Forwarding:** Once specifications are successfully retrieved, the controller invokes `setConnectionData()` inside the `LoginController`. This routine forwards the URI, path, and node specifications, while simultaneously initializing the central `MinerService` cache (storing path, URI, cryptographic signature algorithm, and the network `ChainID`).
+### Entry point: the Miner Manager
+`Main.java` loads `manager.fxml`, the home dashboard handled by **`MinerManagerController`**:
+- lists all saved miners as cards with the four-state status LED (refreshed in real time, only when a state actually changes);
+- on startup calls `MinerManager.autoStartAllMiners(...)` to launch every active miner with a ready plot;
+- **"Crea nuovo"** opens the creation wizard (Connection → Login);
+- **"Apri Console"** rebuilds the miner's `KeyPair` from its `.pem` and opens the mining console, re-attaching to the background session if it is already running;
+- **"Elimina"** removes the XML entry and the `.plot`, optionally keeping the `.pem` (which holds the funds);
+- **"Rinomina"** renames a miner.
 
-### 2. The Identity Phase: LoginController
-The `LoginController` coordinates secure cryptographic credential management before any mining activity can be authorized. It handles three mutually exclusive authentication pipelines:
-- **New Identity Generation:** The controller requests a fresh 12-word mnemonic phrase from `MinerService`. Based on the active node specifications, it derives the key pairs and exports them locally into a secure `.pem` file for future sessions.
-- **Load Existing `.pem` File:** The user loads a pre-existing key file from disk. The controller extracts the underlying entropy, reconstructs the valid cryptographic keys based on the active node specifications, and prepares them for the dashboard.
-- **Mnemonic Phrase Recovery (BIP39):** The user inputs an existing 12-word recovery phrase. The controller passes the phrase to `MinerService` to validate dictionary compliance; if successful, it generates the appropriate key pair to be handed over to the final view.
+### Creating a miner: ConnectionController → LoginController
+- **`ConnectionController`** takes the node URI and a name, performs the node handshake on a background `Task` to fetch the `MiningSpecification` (chain id, signature/hashing algorithms, node block-signing key), builds a temporary `MinerInstance` with a fresh UUID and forwards it to login. Visited URIs are remembered.
+- **`LoginController`** handles the three identity pipelines (new mnemonic / load `.pem` / recover phrase). On success it exports the entropy to `miner_storage/identities/<uuid>.pem`, lets the user import or schedule a plot, persists the miner to the XML and returns to the dashboard.
 
-### 3. The Cockpit: MiningController
-Once the identity is verified, the `LoginController` forwards the generated key pair to the `MiningController` via `setMiningData()`, immediately rendering the primary dashboard stage.
-- **Plot Enforcement:** The controller checks if a valid `.plot` binary file exists at the specified path. If missing, it spawns an asynchronous background JavaFX Task to safely execute `Plots.create()` based on the user's verified public key.
-- **Active Miner Ignition:** It instantiates and activates the real-time mining engine (`DesktopMinerService`), binding it to the network socket.
-- **Live User Feedback:** The controller orchestrates immediate diagnostic log streams within the UI terminal area and triggers background polling daemons to display periodic, thread-safe updates of the wallet's `Current Balance` in MOK tokens.
+### Per-miner console: MiningController
+**`MiningController`** is the dashboard of a single miner. It creates the `.plot` (`Plots.create`, deterministic), starts/stops mining through `MinerManager`, streams the live log into the console area and shows the wallet balance on request.
 
 ---
 
-## Core Components Breakdown
+## Core components
 
-- **`MinerService`:** The shared state engine and identity helper. It caches session invariants (URI, Path, Chain ID) and encapsulates the BIP39 word dictionary logic to validate recovery phrases and stream random mnemonic entropy.
-- **`DesktopMinerService`:** The live network router. It extends `AbstractReconnectingMinerService` to handle the low-level stateful WebSocket loops with the University's remote node and translates raw blockchain deadlines into GUI-friendly interface events via a custom `MinerListener`.
+- **`MinerManager`** (singleton) — owns a `ConcurrentHashMap<uuid, DesktopMinerService>` of background mining sessions and a per-miner balance cache. Centralising start/stop here lets a session survive closing its console window. Auto-start runs on a dedicated thread and starts only miners that are active and have a plot. A user stop persists `active=false`; the app-shutdown stop leaves the flag untouched.
+- **`DesktopMinerService`** (`core/`) — extends `AbstractReconnectingMinerService`. Wraps a `LocalMiners` instance over the loaded plot, manages the reconnecting WebSocket to the node, counts deadlines and surfaces events through a swappable `MinerListener` (so logs reach the right console). It keeps a short message history (replayed when a console attaches), a heartbeat and a watchdog to detect stalls.
+- **`MinerInstance`** — the data model persisted to XML. `getPemPath()` / `getPlotPath()` derive the paths from the UUID, so paths are a function of identity, not stored state.
+- **`MinerXmlManager`** — static load/save/add/remove against `miner_storage/miners.xml`, whose schema mirrors the node's mining-specification format and includes the `active` auto-start flag.
+- **`MinerService`** — per-session config holder plus BIP39 helpers (mnemonic generation and validation).
+- **`MinerPrefsManager`** — persists the list of visited node URIs.
+- **`DialogUtils`** — applies the app's dark stylesheet to dialogs created from code.
 
 ---
+
+## Persistence layout
+
+The whole `miner_storage/` folder is created at runtime (and is git-ignored, since it holds local data and private keys):
+
+```
+miner_storage/
+├── miners.xml              # miner metadata, keyed by UUID (includes the active flag)
+├── identities/<uuid>.pem   # entropy dump: re-derives the KeyPair and holds the funds
+└── data/<uuid>.plot        # the mining plot binary
+```
+
+---
+
+## Design choices
+
+- **Multi-miner via a central singleton.** The `MinerManager` keeps the mining sessions alive independently of the windows, so a console can be closed and reopened without interrupting mining, and every miner can run in parallel.
+- **Never block the JavaFX Application Thread.** Node handshakes, plot creation (multi-GB I/O), starting a miner and balance queries all run inside `javafx.concurrent.Task`; UI updates are dispatched back via `Platform.runLater(...)`.
+- **A plot is bound to its node.** The plot's prolog contains the node's block-signing public key, taken from the node's `MiningSpecification`. Moving a miner to a different node requires regenerating its plot.
+- **Persistent enable/disable.** The explicit stop of a miner is remembered, so it is not silently restarted at the next launch.
+- **Clean shutdown.** Closing the dashboard stops every miner and terminates the app (the mining WebSocket threads are non-daemon, so an explicit shutdown is required); closing a single console leaves its miner running.
+
+---
+
 ## Prerequisites
 
 - **Java 21**
 - **Maven 3.8+**
 
-## How to Run
-
-### 1. Clone the repository:
-```bash
-   git clone https://github.com/christiancagalli/mokamint-desktop-miner.git
-   cd mokamint-desktop-miner
-```
-   
-### 2. Build the project
-
-```bash 
-  mvn clean install
-```
-
-### 3. Run the GUI
+## How to run
 
 ```bash
-  mvn javafx:run
+git clone https://github.com/christiancagalli/mokamint-desktop-miner.git
+cd mokamint-desktop-miner
+mvn clean install   # build
+mvn javafx:run      # launch the GUI (main class: it.univr.mokamintminer.gui.Main)
 ```
+
+The GUI opens on the Miner Manager dashboard. A reachable Mokamint node is required to create a miner and to mine; the node used during development is `ws://lipari.hotmoka.io:8025`.
 
 ---
 
-## Design Choices
+## Project structure
 
-### 1. Multi-Stage Architectural Pattern (MVC)
-Unlike the initial prototype which relied on a single monolithic view-controller, the application has been refactored into a modular **Model-View-Controller (MVC)** structure. Responsibilities are now cleanly separated into distinct stages:
-- `ConnectionController`: Manages the remote WebSocket handshake logic.
-- `LoginController`: Secures cryptographic identity via a 12-word mnemonic phrase (`BIP39`).
-- `MiningController`: Main dashboard supervising parallel background tasks.
-
-### 2. Asynchronous Thread Management & UI Safety
-Network interactions (polling the remote node for active mining challenges) and heavy disk I/O operations (generating multi-gigabyte `.plot` binary files) are highly blocking processes.
-To prevent the *JavaFX Application Thread* from freezing, these operations are offloaded to background workers using `javafx.concurrent.Task`. When a background execution finishes (e.g., retrieving a new wallet balance or computing a deadline), thread synchronization and UI updates are safely dispatched back to the main thread via `Platform.runLater()` hooks.
-
-### 3. Fully Real Production Integration
-All mock behaviors and simulation fallbacks have been deprecated. The miner features an uncompromised production-ready integration with the live network:
-- **Plot Creation:** Generates cryptographically valid `.plot` files directly on disk through `Plots.create()`, uniquely bound to the user's public key using `ed25519` and `sha256`.
-- **Live Node Consensus:** Establishes a true WebSocket stateful connection to the University of Verona's official node (`ws://lipari.hotmoka.io:8025`).
-- **Wallet Ledger Sync:** Performs real-time, event-driven pooling of the blockchain ledger to track block rewards and display the precise wallet balance in `MOK` tokens.
-
----
-
-## Project Structure
 ```
 mokamint-desktop-miner/
 ├── src/
 │   └── main/
-│       ├── java/
-│       │   └── it/univr/mokamintminer/
-│       │       ├── core/
-│       │       │   └── DesktopMinerService.java
-│       │       ├── gui/
-│       │       │   ├── ConnectionController.java
-│       │       │   ├── LoginController.java
-│       │       │   ├── MiningController.java
-│       │       │   └── Main.java
-│       │       └── services/
-│       │           └── MinerService.java
+│       ├── java/it/univr/mokamintminer/
+│       │   ├── core/
+│       │   │   └── DesktopMinerService.java
+│       │   ├── gui/
+│       │   │   ├── Main.java
+│       │   │   ├── MinerManagerController.java
+│       │   │   ├── ConnectionController.java
+│       │   │   ├── LoginController.java
+│       │   │   └── MiningController.java
+│       │   ├── services/
+│       │   │   ├── MinerManager.java
+│       │   │   ├── MinerInstance.java
+│       │   │   ├── MinerXmlManager.java
+│       │   │   └── MinerService.java
+│       │   └── utils/
+│       │       ├── MinerPrefsManager.java
+│       │       └── DialogUtils.java
 │       └── resources/
-│           ├── layout/
-│           │   ├── connection.fxml
-│           │   ├── login.fxml
-│           │   └── mining.fxml
-│           └── style.css
+│           └── layout/
+│               ├── manager.fxml
+│               ├── connection.fxml
+│               ├── login.fxml
+│               ├── mining.fxml
+│               └── style.css
 ├── pom.xml
 └── README.md
 ```
@@ -128,9 +138,9 @@ mokamint-desktop-miner/
 
 | Artifact | Version | Purpose |
 |:---|:---|:---|
-| `io-mokamint-plotter` | 1.6.1 | Plot file structural compilation |
-| `io-mokamint-miner-local` | 1.6.1 | Local engine mining execution |
-| `io-mokamint-miner-service` | 1.6.1 | Base reconnecting WebSocket loop abstraction |
-| `io-hotmoka-crypto` | Core | Entropy, BIP39 parsing, and key pair generation |
-| `javafx-controls` | 21 | Graphical interface native elements |
-| `javafx-fxml` | 21 | FXML layout asynchronous rendering |
+| `io-mokamint-plotter` | 1.6.1 | Plot file generation |
+| `io-mokamint-miner-local` | 1.6.1 | Local mining engine |
+| `io-mokamint-miner-service` | 1.6.1 | Reconnecting WebSocket miner service |
+| `io-hotmoka-crypto` | 1.5.x | Entropy, BIP39 parsing and key-pair generation |
+| `javafx-controls` | 21 | GUI components |
+| `javafx-fxml` | 21 | FXML layout loading |
