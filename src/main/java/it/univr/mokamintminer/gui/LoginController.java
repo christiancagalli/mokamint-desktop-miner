@@ -61,8 +61,6 @@ public class LoginController {
             var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
             var keyPair = entropy.keys("", signatureForDeadlines);
 
-            temporaryMiner.setKeyPair(keyPair);
-
             var publicKey = keyPair.getPublic();
             String publicKeyBase58 = io.hotmoka.crypto.Base58.toBase58String(signatureForDeadlines.encodingOf(publicKey));
             // Solo la chiave per le DEADLINE è quella del miner; quella per i BLOCCHI è del
@@ -74,7 +72,6 @@ public class LoginController {
             if (!identitiesDir.exists()) identitiesDir.mkdirs();
             File finalPemFile = new File(identitiesDir, temporaryMiner.getUuid() + ".pem");
             entropy.dump(finalPemFile.toPath());
-            temporaryMiner.setPemPath(finalPemFile.getAbsolutePath());
 
             showMnemonicPopup(newMnemonic);
             handlePlotAndFinalize();
@@ -108,8 +105,6 @@ public class LoginController {
                 var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
                 var keyPair = entropy.keys("", signatureForDeadlines);
 
-                temporaryMiner.setKeyPair(keyPair);
-
                 var publicKey = keyPair.getPublic();
                 String publicKeyBase58 = io.hotmoka.crypto.Base58.toBase58String(signatureForDeadlines.encodingOf(publicKey));
                 // Solo la chiave per le DEADLINE è quella del miner; quella per i BLOCCHI è del
@@ -121,7 +116,6 @@ public class LoginController {
                 if (!identitiesDir.exists()) identitiesDir.mkdirs();
                 File finalPemFile = new File(identitiesDir, temporaryMiner.getUuid() + ".pem");
                 Files.copy(Paths.get(path), finalPemFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                temporaryMiner.setPemPath(finalPemFile.getAbsolutePath());
 
                 handlePlotAndFinalize();
 
@@ -145,8 +139,6 @@ public class LoginController {
                 var signatureForDeadlines = miningSpecification.getSignatureForDeadlines();
                 var keyPair = entropy.keys("", signatureForDeadlines);
 
-                temporaryMiner.setKeyPair(keyPair);
-
                 var publicKey = keyPair.getPublic();
                 String publicKeyBase58 = io.hotmoka.crypto.Base58.toBase58String(signatureForDeadlines.encodingOf(publicKey));
                 // Solo la chiave per le DEADLINE è quella del miner; quella per i BLOCCHI è del
@@ -157,7 +149,6 @@ public class LoginController {
                 if (!identitiesDir.exists()) identitiesDir.mkdirs();
                 File finalPemFile = new File(identitiesDir, temporaryMiner.getUuid() + ".pem");
                 entropy.dump(finalPemFile.toPath());
-                temporaryMiner.setPemPath(finalPemFile.getAbsolutePath());
 
                 handlePlotAndFinalize();
             } catch (Exception e) {
@@ -207,12 +198,11 @@ public class LoginController {
                 }
 
                 Files.copy(selectedPlot.toPath(), finalPlotFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                temporaryMiner.setPlotPath(finalPlotFile.getAbsolutePath());
 
             } else if (resultChoice.get() == btnCreateNew) {
-                // Non creo nessun file sul disco: registro solo il percorso in cui nascerà
-                // il plot. Avendo dimensione 0, la dashboard saprà che va ancora generato.
-                temporaryMiner.setPlotPath(finalPlotFile.getAbsolutePath());
+                // Non creo nessun file sul disco: il plot verrà generato in seguito dalla
+                // dashboard. Il percorso è sempre derivato dall'UUID, niente da registrare:
+                // finché il file non esiste la dashboard sa che il plot va ancora generato.
             }
 
             // Scrittura finale del miner nell'XML

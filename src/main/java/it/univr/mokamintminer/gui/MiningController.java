@@ -257,7 +257,6 @@ public class MiningController {
 
             try {
                 if (minerData != null) {
-                    minerData.setPlotSize(size);
                     MinerXmlManager.addMiner(minerData);
                     log("File XML aggiornato correttamente con la dimensione del plot.");
                 } else {

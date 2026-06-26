@@ -41,7 +41,6 @@ public class MinerXmlManager {
                     // Lettura dei tag principali del miner
                     String uuid = getTagValue("uuid", element);
                     String uri = getTagValue("uri", element);
-                    String plotSizeStr = getTagValue("plot-size", element);
                     String creationTimeStr = getTagValue("creation-time-utc", element);
                     String pubKeyDeadlines = getTagValue("public-key-for-signing-deadlines-base58", element);
 
@@ -64,12 +63,9 @@ public class MinerXmlManager {
                         pubKeyBlocks = getTagValue("public-key-for-signing-blocks-base58", specElement);
                     }
 
-                    // Costruisco l'istanza dai dati recuperati
+                    // Costruisco l'istanza dai dati recuperati. I percorsi di .plot e .pem
+                    // non vengono salvati: li derivo dall'UUID nei getter getPlotPath/getPemPath.
                     MinerInstance miner = new MinerInstance(uuid, name, uri);
-
-                    // Mappo i percorsi locali derivandoli dall'UUID
-                    miner.setPlotPath("miner_storage/data/" + uuid + ".plot");
-                    miner.setPemPath("miner_storage/identities/" + uuid + ".pem");
 
                     // Sincronizzo il resto dei parametri
                     miner.setChainId(chainId);

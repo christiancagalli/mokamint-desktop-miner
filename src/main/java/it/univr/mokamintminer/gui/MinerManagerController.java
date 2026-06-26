@@ -212,38 +212,29 @@ public class MinerManagerController {
 
     private void handleOpenMinerConsole(MinerInstance miner) {
         try {
-            // 1. Ricostruisco i percorsi locali derivandoli dall'UUID del miner
-            if (miner.getPlotPath() == null || miner.getPlotPath().isBlank()) {
-                miner.setPlotPath("miner_storage/data/" + miner.getUuid() + ".plot");
-            }
-            if (miner.getPemPath() == null || miner.getPemPath().isBlank()) {
-                miner.setPemPath("miner_storage/identities/" + miner.getUuid() + ".pem");
-            }
-
-            // 2. Carico l'identità crittografica dal file .pem
+            // 1. Carico l'identità crittografica dal file .pem (il percorso è derivato dall'UUID)
             Path correctPemPath = Paths.get(miner.getPemPath());
             var entropy = Entropies.load(correctPemPath);
 
-            // 3. Recupero l'algoritmo di firma letto in precedenza dall'XML
+            // 2. Recupero l'algoritmo di firma letto in precedenza dall'XML
             String sigForDeadlinesStr = miner.getSignatureForDeadlines();
             var signatureForDeadlines = io.hotmoka.crypto.SignatureAlgorithms.of(sigForDeadlinesStr);
 
-            // 4. Rigenero la KeyPair in memoria e la passo al modello
+            // 3. Rigenero la KeyPair in memoria
             KeyPair userKeys = entropy.keys("", signatureForDeadlines);
-            miner.setKeyPair(userKeys);
 
-            // 5. Creo il wrapper di servizio
+            // 4. Creo il wrapper di servizio
             MinerService serviceWrapper = new MinerService();
 
-            // 6. Carico l'interfaccia grafica del terminale di mining
+            // 5. Carico l'interfaccia grafica del terminale di mining
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/layout/mining.fxml"));
             Parent root = loader.load();
 
-            // Passo i parametri configurati: ora il miner ha i percorsi validi
+            // Passo i parametri configurati al controller della console
             MiningController miningController = loader.getController();
             miningController.setMiningData(serviceWrapper, userKeys, null, miner);
 
-            // 7. Mostro la finestra della console
+            // 6. Mostro la finestra della console
             Stage consoleStage = new Stage();
             consoleStage.setTitle("Console di Mining - " + miner.getName());
 
